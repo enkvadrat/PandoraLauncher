@@ -24,10 +24,10 @@ Please keep in mind that Pandora *is* a work in progress, and many of the things
 |Supports mod devs|-|-|-|✔|
 |Content sources|-|-|-|Modrinth|
 |Game output|~~Filter~~(wip), search, ~~upload~~(wip)|Filter, search|Search (forwards-only)|Filter, search, upload|
-|Secure credentials|[✔](## "Uses platform keyrings (Windows Credential Store, MacOS Keychain, Linux Secret Service)")|[-](## "Uses platform keyrings (Windows Credential Store, MacOS Keychain, Linux Secret Service), but leaks access tokens in game launch arguments")|[-](## "Leaks account credentials in logs and stores them in plain-text on the disk")|[-](## "Stores account credentials using Tauri localstorage, harder to access than plain-text")|
+|Secure credentials|[Yes](## "Uses platform keyrings (Windows Credential Store, MacOS Keychain, Linux Secret Service)")|[No](## "Uses platform keyrings (Windows Credential Store, MacOS Keychain, Linux Secret Service), but leaks access tokens in game launch arguments")|[No](## "Leaks account credentials in logs [MultiMC] and stores them in plain-text on the disk")|[Okay](## "Stores account credentials using Tauri localstorage, harder to access than plain-text")|
 |Fabric|✔|-|✔|✔|
 |(Neo)forge|-|-|✔|✔|
-|Modpack support|-|-|CF, MR, etc.|MR|
+|Modpack support|-|-|CF (Prism), MR, etc.|MR|
 
 ## Instance Page
 ![Instance Page](https://raw.githubusercontent.com/Moulberry/PandoraLauncher/refs/heads/master/screenshots/instance.png)
