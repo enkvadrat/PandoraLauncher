@@ -1,15 +1,28 @@
 use std::{ffi::OsString, sync::Arc};
 
-use schema::{loader::Loader, modrinth::{ModrinthError, ModrinthRequest, ModrinthResult}, version_manifest::MinecraftVersionManifest};
+use schema::{
+    loader::Loader,
+    modrinth::{ModrinthError, ModrinthRequest, ModrinthResult},
+    version_manifest::MinecraftVersionManifest,
+};
 use ustr::Ustr;
 use uuid::Uuid;
 
-use crate::{account::Account, game_output::GameOutputLogLevel, install::ContentInstall, instance::{InstanceID, InstanceModID, InstanceModSummary, InstanceServerSummary, InstanceStatus, InstanceWorldSummary}, keep_alive::{KeepAlive, KeepAliveHandle}, modal_action::ModalAction};
+use crate::{
+    account::Account,
+    game_output::GameOutputLogLevel,
+    install::ContentInstall,
+    instance::{
+        InstanceID, InstanceModID, InstanceModSummary, InstanceServerSummary, InstanceStatus, InstanceWorldSummary,
+    },
+    keep_alive::{KeepAlive, KeepAliveHandle},
+    modal_action::ModalAction,
+};
 
 #[derive(Debug)]
 pub enum MessageToBackend {
     LoadVersionManifest {
-        reload: bool
+        reload: bool,
     },
     CreateInstance {
         name: Ustr,
@@ -25,13 +38,13 @@ pub enum MessageToBackend {
         modal_action: ModalAction,
     },
     RequestLoadWorlds {
-        id: InstanceID
+        id: InstanceID,
     },
     RequestLoadServers {
-        id: InstanceID
+        id: InstanceID,
     },
     RequestLoadMods {
-        id: InstanceID
+        id: InstanceID,
     },
     SetModEnabled {
         id: InstanceID,
@@ -54,7 +67,7 @@ pub enum MessageToBackend {
         content: ContentInstall,
         modal_action: ModalAction,
     },
-    DownloadAllMetadata
+    DownloadAllMetadata,
 }
 
 #[derive(Debug)]
@@ -77,7 +90,7 @@ pub enum MessageToFrontend {
         name: Ustr,
         version: Ustr,
         loader: Loader,
-        status: InstanceStatus
+        status: InstanceStatus,
     },
     InstanceWorldsUpdated {
         id: InstanceID,
@@ -117,7 +130,9 @@ pub enum MessageToFrontend {
     },
     Refresh,
     CloseModal,
-    MoveInstanceToTop { id: InstanceID },
+    MoveInstanceToTop {
+        id: InstanceID,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -125,7 +140,7 @@ pub enum BridgeNotificationType {
     Success,
     Info,
     Error,
-    Warning
+    Warning,
 }
 
 #[atomic_enum::atomic_enum]
@@ -135,7 +150,7 @@ pub enum BridgeDataLoadState {
     LoadingDirty,
     LoadedDirty,
     Loading,
-    Loaded
+    Loaded,
 }
 
 impl BridgeDataLoadState {

@@ -31,7 +31,7 @@ mod inner {
             match value {
                 oo7::Error::File(error) => match error {
                     oo7::file::Error::Io(_) => Self::IoError,
-                    _ => Self::UnknownError
+                    _ => Self::UnknownError,
                 },
                 oo7::Error::DBus(error) => match error {
                     oo7::dbus::Error::Service(service_error) => match service_error {
@@ -40,7 +40,7 @@ mod inner {
                     },
                     oo7::dbus::Error::Dismissed => Self::AccessDenied,
                     oo7::dbus::Error::IO(_) => Self::IoError,
-                    _ => Self::UnknownError
+                    _ => Self::UnknownError,
                 },
             }
         }
@@ -53,7 +53,7 @@ mod inner {
     impl PlatformSecretStorage {
         pub async fn new() -> Self {
             Self {
-                keyring: oo7::Keyring::new().await
+                keyring: oo7::Keyring::new().await,
             }
         }
 
@@ -76,7 +76,11 @@ mod inner {
             }
         }
 
-        pub async fn write_credentials(&self, uuid: Uuid, credentials: &AccountCredentials) -> Result<(), SecretStorageError> {
+        pub async fn write_credentials(
+            &self,
+            uuid: Uuid,
+            credentials: &AccountCredentials,
+        ) -> Result<(), SecretStorageError> {
             let keyring = self.keyring.as_ref()?;
             keyring.unlock().await?;
 

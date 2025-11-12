@@ -4,7 +4,10 @@ use tiny_http::{Response, Server};
 use tokio_util::sync::CancellationToken;
 use url::Url;
 
-use crate::{constants, models::{FinishedAuthorization, PendingAuthorization}};
+use crate::{
+    constants,
+    models::{FinishedAuthorization, PendingAuthorization},
+};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessAuthorizationError {
@@ -22,9 +25,11 @@ pub enum ProcessAuthorizationError {
     CancelledByUser,
 }
 
-pub fn start_server(pending_authroization: PendingAuthorization, cancel: CancellationToken) -> Result<FinishedAuthorization, ProcessAuthorizationError> {
-    let server = Server::http(constants::SERVER_ADDRESS)
-        .map_err(ProcessAuthorizationError::StartServer)?;
+pub fn start_server(
+    pending_authroization: PendingAuthorization,
+    cancel: CancellationToken,
+) -> Result<FinishedAuthorization, ProcessAuthorizationError> {
+    let server = Server::http(constants::SERVER_ADDRESS).map_err(ProcessAuthorizationError::StartServer)?;
 
     loop {
         let request = server.recv_timeout(Duration::from_millis(50))?;
@@ -49,7 +54,7 @@ pub fn start_server(pending_authroization: PendingAuthorization, cancel: Cancell
                 "state" => state = Some(value),
                 _ => {
                     eprintln!("Unknown parameter: {:?} => {:?}", key, value);
-                }
+                },
             }
         }
 
@@ -60,9 +65,7 @@ pub fn start_server(pending_authroization: PendingAuthorization, cancel: Cancell
             // This definitely isn't necessary, but hey--I'm paranoid
             let _ = request.respond(Response::new(
                 tiny_http::StatusCode(302),
-                vec![
-                    tiny_http::Header::from_bytes(&b"Location"[..], url).unwrap()
-                ],
+                vec![tiny_http::Header::from_bytes(&b"Location"[..], url).unwrap()],
                 std::io::empty(),
                 Some(0),
                 None,
@@ -84,10 +87,16 @@ pub fn start_server(pending_authroization: PendingAuthorization, cancel: Cancell
         }
 
         if let Some(state) = state
-            && &*state != pending_authroization.csrf_token.secret() {
-                respond(request, "Error: CSRF Mismatch!", "Did you reload the tab instead of going through the proper authorization flow?", true);
-                return Err(ProcessAuthorizationError::CsrfMismatch);
-            }
+            && &*state != pending_authroization.csrf_token.secret()
+        {
+            respond(
+                request,
+                "Error: CSRF Mismatch!",
+                "Did you reload the tab instead of going through the proper authorization flow?",
+                true,
+            );
+            return Err(ProcessAuthorizationError::CsrfMismatch);
+        }
 
         let Some(code) = code else {
             respond(request, "Error", "Missing required 'code' parameter", true);
@@ -98,7 +107,7 @@ pub fn start_server(pending_authroization: PendingAuthorization, cancel: Cancell
 
         return Ok(FinishedAuthorization {
             pending: pending_authroization,
-            code: code.to_string()
+            code: code.to_string(),
         });
     }
 }
@@ -117,12 +126,10 @@ fn respond(request: Option<tiny_http::Request>, main: &str, secondary: &str, err
     let string_length = string.len();
     let response = Response::new(
         status_code,
-        vec![
-            tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=UTF-8"[..]).unwrap()
-        ],
+        vec![tiny_http::Header::from_bytes(&b"Content-Type"[..], &b"text/html; charset=UTF-8"[..]).unwrap()],
         Cursor::new(string.into_bytes()),
         Some(string_length),
-        None
+        None,
     );
     let _ = request.respond(response);
 }

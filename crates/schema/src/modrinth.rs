@@ -25,7 +25,7 @@ pub struct ModrinthErrorResponse {
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ModrinthRequest {
     Search(ModrinthSearchRequest),
-    ProjectVersions(ModrinthProjectVersionsRequest)
+    ProjectVersions(ModrinthProjectVersionsRequest),
 }
 
 #[derive(Debug, Clone)]
@@ -47,7 +47,6 @@ pub struct ModrinthSearchRequest {
 pub struct ModrinthProjectVersionsRequest {
     pub project_id: Arc<str>,
 }
-
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -184,7 +183,7 @@ impl ModrinthLoader {
             "Iris" | "iris" => Self::Iris,
             "Optifine" | "optifine" => Self::Optifine,
             "Canvas" | "canvas" => Self::Canvas,
-            _ => Self::Unknown
+            _ => Self::Unknown,
         }
     }
 }

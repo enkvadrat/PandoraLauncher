@@ -7,7 +7,7 @@ use ustr::Ustr;
 #[derive(Deserialize, Clone, Debug)]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct JavaRuntimeComponentManifest {
-    pub files: IndexMap<Arc<Path>, JavaRuntimeComponentFile>
+    pub files: IndexMap<Arc<Path>, JavaRuntimeComponentFile>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -18,11 +18,11 @@ pub enum JavaRuntimeComponentFile {
     Directory,
     File {
         executable: bool,
-        downloads: JavaRuntimeComponentFileDownloads
+        downloads: JavaRuntimeComponentFileDownloads,
     },
     Link {
-        target: Arc<Path>
-    }
+        target: Arc<Path>,
+    },
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -30,7 +30,7 @@ pub enum JavaRuntimeComponentFile {
 pub struct JavaRuntimeComponentFileDownloads {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub lzma: Option<JavaRuntimeComponentFileDownload>,
-    pub raw: JavaRuntimeComponentFileDownload
+    pub raw: JavaRuntimeComponentFileDownload,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -38,5 +38,5 @@ pub struct JavaRuntimeComponentFileDownloads {
 pub struct JavaRuntimeComponentFileDownload {
     pub sha1: Ustr,
     pub size: u32,
-    pub url: Ustr
+    pub url: Ustr,
 }

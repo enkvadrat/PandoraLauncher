@@ -1,6 +1,6 @@
-use std::{fmt::Debug, result, ptr::NonNull};
+pub use reference::{CompoundRef, CompoundRefMut, ListRef, ListRefMut, NBTRef, NBTRefMut};
 use slab::Slab;
-pub use reference::{NBTRef, NBTRefMut, ListRef, CompoundRef, ListRefMut, CompoundRefMut};
+use std::{fmt::Debug, ptr::NonNull, result};
 
 pub mod decode;
 pub mod encode;
@@ -62,7 +62,7 @@ macro_rules! insert {
                 self.insert_node(key, NBTNode::$node(value));
             }
         }
-    }
+    };
 }
 
 macro_rules! get_list {
@@ -75,7 +75,7 @@ macro_rules! get_list {
                 }
             }
         }
-    }
+    };
 }
 
 macro_rules! insert_list {
@@ -85,7 +85,7 @@ macro_rules! insert_list {
                 self.insert_node(NBTNode::$node(value));
             }
         }
-    }
+    };
 }
 
 macro_rules! set_list_at {
@@ -95,7 +95,7 @@ macro_rules! set_list_at {
                 self.set_node_at(index, NBTNode::$node(value));
             }
         }
-    }
+    };
 }
 
 macro_rules! find {
@@ -109,7 +109,7 @@ macro_rules! find {
                 }
             }
         }
-    }
+    };
 }
 
 macro_rules! find_mut {
@@ -123,7 +123,7 @@ macro_rules! find_mut {
                 }
             }
         }
-    }
+    };
 }
 
 macro_rules! enumerate_basic_types {
@@ -138,16 +138,16 @@ macro_rules! enumerate_basic_types {
         $macro!(string, String, String);
         $macro!(int_array, Vec<i32>, IntArray);
         $macro!(long_array, Vec<i64>, LongArray);
-    }
+    };
 }
 
 pub(crate) use enumerate_basic_types;
-pub(crate) use insert;
-pub(crate) use get_list;
-pub(crate) use insert_list;
-pub(crate) use set_list_at;
 pub(crate) use find;
 pub(crate) use find_mut;
+pub(crate) use get_list;
+pub(crate) use insert;
+pub(crate) use insert_list;
+pub(crate) use set_list_at;
 
 impl NBT {
     pub fn new() -> NBT {
@@ -166,10 +166,11 @@ impl NBT {
 
     pub fn as_compound(&self) -> Option<CompoundRef<'_>> {
         match &self.nodes[self.root_index] {
-            NBTNode::Compound(_) => {
-                Some(CompoundRef { nbt: self, node_idx: self.root_index })
-            },
-            _ => None
+            NBTNode::Compound(_) => Some(CompoundRef {
+                nbt: self,
+                node_idx: self.root_index,
+            }),
+            _ => None,
         }
     }
 
@@ -179,7 +180,7 @@ impl NBT {
                 let node_idx = self.root_index;
                 Some(CompoundRefMut { nbt: self, node_idx })
             },
-            _ => None
+            _ => None,
         }
     }
 
@@ -206,7 +207,7 @@ impl NBT {
                     self.remove_node(child);
                 }
             },
-            _ => {}
+            _ => {},
         }
     }
 
@@ -220,12 +221,12 @@ impl NBT {
             NBTNode::Double(value) => NBTRef::Double(value),
             NBTNode::ByteArray(value) => NBTRef::ByteArray(value),
             NBTNode::String(value) => NBTRef::String(value),
-            NBTNode::List { type_id, children: _ } => {
-                NBTRef::List(ListRef { nbt: self, node_idx, children_type: *type_id })
-            },
-            NBTNode::Compound(_) => {
-                NBTRef::Compound(CompoundRef { nbt: self, node_idx })
-            },
+            NBTNode::List { type_id, children: _ } => NBTRef::List(ListRef {
+                nbt: self,
+                node_idx,
+                children_type: *type_id,
+            }),
+            NBTNode::Compound(_) => NBTRef::Compound(CompoundRef { nbt: self, node_idx }),
             NBTNode::IntArray(value) => NBTRef::IntArray(value),
             NBTNode::LongArray(value) => NBTRef::LongArray(value),
         }
@@ -244,12 +245,17 @@ impl NBT {
             NBTNode::Double(value) => NBTRefMut::Double(value),
             NBTNode::ByteArray(value) => NBTRefMut::ByteArray(value),
             NBTNode::String(value) => NBTRefMut::String(value),
-            NBTNode::List { type_id: _, children: _ } => {
-                NBTRefMut::List(ListRefMut { nbt: unsafe { nbt_ptr.as_mut() }, node_idx })
-            },
-            NBTNode::Compound(_) => {
-                NBTRefMut::Compound(CompoundRefMut { nbt: unsafe { nbt_ptr.as_mut() }, node_idx })
-            },
+            NBTNode::List {
+                type_id: _,
+                children: _,
+            } => NBTRefMut::List(ListRefMut {
+                nbt: unsafe { nbt_ptr.as_mut() },
+                node_idx,
+            }),
+            NBTNode::Compound(_) => NBTRefMut::Compound(CompoundRefMut {
+                nbt: unsafe { nbt_ptr.as_mut() },
+                node_idx,
+            }),
             NBTNode::IntArray(value) => NBTRefMut::IntArray(value),
             NBTNode::LongArray(value) => NBTRefMut::LongArray(value),
         }
@@ -267,7 +273,10 @@ enum NBTNode {
     Double(f64),
     ByteArray(Vec<i8>),
     String(String),
-    List { type_id: TagType, children: Vec<usize> },
+    List {
+        type_id: TagType,
+        children: Vec<usize>,
+    },
     Compound(NBTCompound),
     IntArray(Vec<i32>),
     LongArray(Vec<i64>),
@@ -284,7 +293,10 @@ impl NBTNode {
             NBTNode::Double(_) => TAG_DOUBLE_ID,
             NBTNode::ByteArray(_) => TAG_BYTE_ARRAY_ID,
             NBTNode::String(_) => TAG_STRING_ID,
-            NBTNode::List { type_id: _, children: _ } => TAG_LIST_ID,
+            NBTNode::List {
+                type_id: _,
+                children: _,
+            } => TAG_LIST_ID,
             NBTNode::Compound(_) => TAG_COMPOUND_ID,
             NBTNode::IntArray(_) => TAG_INT_ARRAY_ID,
             NBTNode::LongArray(_) => TAG_LONG_ARRAY_ID,
@@ -324,10 +336,10 @@ impl NBTCompound {
         match self.binary_search(key) {
             Ok(index) => {
                 let _ = std::mem::replace(&mut self.0[index].1, value);
-            }
+            },
             Err(index) => {
                 self.0.insert(index, (key.into(), value));
-            }
+            },
         }
     }
 

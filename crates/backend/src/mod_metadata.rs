@@ -1,11 +1,16 @@
-use std::{collections::HashMap, fs::File, io::{Cursor, Read}, sync::Arc};
+use std::{
+    collections::HashMap,
+    fs::File,
+    io::{Cursor, Read},
+    sync::Arc,
+};
 
 use bridge::instance::ModSummary;
 use image::imageops::FilterType;
 use serde::Deserialize;
 use sha1::{Digest, Sha1};
-use zip::read::ZipFile;
 use std::sync::RwLock;
+use zip::read::ZipFile;
 
 #[derive(Default)]
 pub struct ModMetadataManager {
@@ -37,7 +42,7 @@ impl ModMetadataManager {
             Ok(file) => file,
             Err(..) => {
                 return None;
-            }
+            },
         };
 
         let fabric_mod_json: FabricModJson = serde_json::from_reader(file).unwrap();
@@ -81,7 +86,7 @@ impl ModMetadataManager {
             name,
             authors,
             version_str: format!("v{}", fabric_mod_json.version).into(),
-            png_icon
+            png_icon,
         }))
     }
 }
@@ -141,16 +146,14 @@ struct FabricModJson {
 #[serde(untagged)]
 enum Icon {
     Single(Arc<str>),
-    Sizes(HashMap<usize, Arc<str>>)
+    Sizes(HashMap<usize, Arc<str>>),
 }
 
 #[derive(Deserialize, Debug)]
 #[serde(untagged)]
 enum Person {
     Name(Arc<str>),
-    NameAndContact {
-        name: Arc<str>,
-    }
+    NameAndContact { name: Arc<str> },
 }
 
 impl Person {

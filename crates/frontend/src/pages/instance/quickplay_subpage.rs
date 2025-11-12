@@ -1,9 +1,20 @@
-use std::{ffi::OsString, sync::{atomic::Ordering, Arc}};
+use std::{
+    ffi::OsString,
+    sync::{Arc, atomic::Ordering},
+};
 
-use bridge::{handle::BackendHandle, instance::{InstanceID, InstanceServerSummary, InstanceWorldSummary}, message::{AtomicBridgeDataLoadState, MessageToBackend, QuickPlayLaunch}};
+use bridge::{
+    handle::BackendHandle,
+    instance::{InstanceID, InstanceServerSummary, InstanceWorldSummary},
+    message::{AtomicBridgeDataLoadState, MessageToBackend, QuickPlayLaunch},
+};
 use gpui::{prelude::*, *};
 use gpui_component::{
-    button::{Button, ButtonVariants}, h_flex, list::{ListDelegate, ListItem, ListState}, v_flex, ActiveTheme as _, Icon, IndexPath
+    ActiveTheme as _, Icon, IndexPath,
+    button::{Button, ButtonVariants},
+    h_flex,
+    list::{ListDelegate, ListItem, ListState},
+    v_flex,
 };
 
 use crate::{entity::instance::InstanceEntry, png_render_cache, root};
@@ -18,7 +29,12 @@ pub struct InstanceQuickplaySubpage {
 }
 
 impl InstanceQuickplaySubpage {
-    pub fn new(instance: &Entity<InstanceEntry>, backend_handle: BackendHandle, mut window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> Self {
+    pub fn new(
+        instance: &Entity<InstanceEntry>,
+        backend_handle: BackendHandle,
+        mut window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> Self {
         let instance = instance.read(cx);
         let instance_id = instance.id;
 
@@ -86,28 +102,43 @@ impl Render for InstanceQuickplaySubpage {
 
         let state = self.worlds_state.load(Ordering::SeqCst);
         if state.should_send_load_request() {
-            self.backend_handle.blocking_send(MessageToBackend::RequestLoadWorlds { id: self.instance });
+            self.backend_handle
+                .blocking_send(MessageToBackend::RequestLoadWorlds { id: self.instance });
         }
 
         let state = self.servers_state.load(Ordering::SeqCst);
         if state.should_send_load_request() {
-            self.backend_handle.blocking_send(MessageToBackend::RequestLoadServers { id: self.instance });
+            self.backend_handle
+                .blocking_send(MessageToBackend::RequestLoadServers { id: self.instance });
         }
 
-        v_flex()
-            .p_4()
-            .gap_4()
-            .size_full()
-            .child(h_flex()
+        v_flex().p_4().gap_4().size_full().child(
+            h_flex()
                 .size_full()
                 .gap_4()
-                .child(v_flex().size_full().text_lg().child("Worlds")
-                    .child(v_flex().text_base().size_full().border_1().rounded(theme.radius).border_color(theme.border)
-                        .child(self.world_list.clone())))
-                .child(v_flex().size_full().text_lg().child("Servers")
-                    .child(v_flex().text_base().size_full().border_1().rounded(theme.radius).border_color(theme.border)
-                        .child(self.server_list.clone())))
-            )
+                .child(
+                    v_flex().size_full().text_lg().child("Worlds").child(
+                        v_flex()
+                            .text_base()
+                            .size_full()
+                            .border_1()
+                            .rounded(theme.radius)
+                            .border_color(theme.border)
+                            .child(self.world_list.clone()),
+                    ),
+                )
+                .child(
+                    v_flex().size_full().text_lg().child("Servers").child(
+                        v_flex()
+                            .text_base()
+                            .size_full()
+                            .border_1()
+                            .rounded(theme.radius)
+                            .border_color(theme.border)
+                            .child(self.server_list.clone()),
+                    ),
+                ),
+        )
     }
 }
 
@@ -126,12 +157,7 @@ impl ListDelegate for WorldsListDelegate {
         self.searched.len()
     }
 
-    fn render_item(
-        &self,
-        ix: IndexPath,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Option<Self::Item> {
+    fn render_item(&self, ix: IndexPath, _window: &mut Window, cx: &mut App) -> Option<Self::Item> {
         let summary = self.searched.get(ix.row)?;
 
         let icon = if let Some(png_icon) = summary.png_icon.as_ref() {
@@ -140,9 +166,16 @@ impl ListDelegate for WorldsListDelegate {
             gpui::img(ImageSource::Resource(Resource::Embedded("images/default_world.png".into())))
         };
 
-        let description = v_flex()
-            .child(SharedString::from(summary.title.clone()))
-            .child(div().text_color(Hsla { h: 0.0, s: 0.0, l: 0.5, a: 1.0}).child(SharedString::from(summary.subtitle.clone())));
+        let description = v_flex().child(SharedString::from(summary.title.clone())).child(
+            div()
+                .text_color(Hsla {
+                    h: 0.0,
+                    s: 0.0,
+                    l: 0.5,
+                    a: 1.0,
+                })
+                .child(SharedString::from(summary.subtitle.clone())),
+        );
 
         let play_icon = Icon::empty().path("icons/play.svg");
 
@@ -150,38 +183,35 @@ impl ListDelegate for WorldsListDelegate {
         let name = self.name.clone();
         let backend_handle = self.backend_handle.clone();
         let target = summary.level_path.file_name().unwrap().to_owned();
-        let item = ListItem::new(ix)
-            .p_1()
-            .child(h_flex()
+        let item = ListItem::new(ix).p_1().child(
+            h_flex()
                 .gap_1()
-                .child(div().child(Button::new(ix).success().icon(play_icon).on_click(move |_, window, cx| {
-                    root::start_instance(id, name.clone(), Some(QuickPlayLaunch::Singleplayer(target.clone())), &backend_handle, window, cx);
-                })).px_2())
+                .child(
+                    div()
+                        .child(Button::new(ix).success().icon(play_icon).on_click(move |_, window, cx| {
+                            root::start_instance(
+                                id,
+                                name.clone(),
+                                Some(QuickPlayLaunch::Singleplayer(target.clone())),
+                                &backend_handle,
+                                window,
+                                cx,
+                            );
+                        }))
+                        .px_2(),
+                )
                 .child(icon.size_16().min_w_16().min_h_16())
-                .child(description)
-            );
+                .child(description),
+        );
 
         Some(item)
     }
 
-    fn set_selected_index(
-        &mut self,
-        _ix: Option<IndexPath>,
-        _window: &mut Window,
-        _cx: &mut Context<ListState<Self>>,
-    ) {
+    fn set_selected_index(&mut self, _ix: Option<IndexPath>, _window: &mut Window, _cx: &mut Context<ListState<Self>>) {
     }
 
-    fn perform_search(
-        &mut self,
-        query: &str,
-        _window: &mut Window,
-        _cx: &mut Context<ListState<Self>>,
-    ) -> Task<()> {
-        self.searched = self.worlds.iter()
-            .filter(|w| w.title.contains(query))
-            .cloned()
-            .collect();
+    fn perform_search(&mut self, query: &str, _window: &mut Window, _cx: &mut Context<ListState<Self>>) -> Task<()> {
+        self.searched = self.worlds.iter().filter(|w| w.title.contains(query)).cloned().collect();
 
         Task::ready(())
     }
@@ -202,12 +232,7 @@ impl ListDelegate for ServersListDelegate {
         self.searched.len()
     }
 
-    fn render_item(
-        &self,
-        ix: IndexPath,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Option<Self::Item> {
+    fn render_item(&self, ix: IndexPath, _window: &mut Window, cx: &mut App) -> Option<Self::Item> {
         let summary = self.searched.get(ix.row)?;
 
         let icon = if let Some(png_icon) = summary.png_icon.as_ref() {
@@ -226,38 +251,35 @@ impl ListDelegate for ServersListDelegate {
         let name = self.name.clone();
         let backend_handle = self.backend_handle.clone();
         let target = OsString::from(summary.ip.to_string());
-        let item = ListItem::new(ix)
-            .p_1()
-            .child(h_flex()
+        let item = ListItem::new(ix).p_1().child(
+            h_flex()
                 .gap_1()
-                .child(div().child(Button::new(ix).success().icon(play_icon).on_click(move |_, window, cx| {
-                    root::start_instance(id, name.clone(), Some(QuickPlayLaunch::Multiplayer(target.clone())), &backend_handle, window, cx);
-                })).px_2())
+                .child(
+                    div()
+                        .child(Button::new(ix).success().icon(play_icon).on_click(move |_, window, cx| {
+                            root::start_instance(
+                                id,
+                                name.clone(),
+                                Some(QuickPlayLaunch::Multiplayer(target.clone())),
+                                &backend_handle,
+                                window,
+                                cx,
+                            );
+                        }))
+                        .px_2(),
+                )
                 .child(icon.size_16().min_w_16().min_h_16())
-                .child(description)
-            );
+                .child(description),
+        );
 
         Some(item)
     }
 
-    fn set_selected_index(
-        &mut self,
-        _ix: Option<IndexPath>,
-        _window: &mut Window,
-        _cx: &mut Context<ListState<Self>>,
-    ) {
+    fn set_selected_index(&mut self, _ix: Option<IndexPath>, _window: &mut Window, _cx: &mut Context<ListState<Self>>) {
     }
 
-    fn perform_search(
-        &mut self,
-        query: &str,
-        _window: &mut Window,
-        _cx: &mut Context<ListState<Self>>,
-    ) -> Task<()> {
-        self.searched = self.servers.iter()
-            .filter(|w| w.name.contains(query))
-            .cloned()
-            .collect();
+    fn perform_search(&mut self, query: &str, _window: &mut Window, _cx: &mut Context<ListState<Self>>) -> Task<()> {
+        self.searched = self.servers.iter().filter(|w| w.name.contains(query)).cloned().collect();
 
         Task::ready(())
     }

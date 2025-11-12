@@ -9,16 +9,16 @@ use sha1::{Digest, Sha1};
 mod backend_filesystem;
 mod backend_handler;
 
-mod metadata;
+mod account;
+mod directories;
+mod install_content;
 mod instance;
 mod launch;
 mod launch_wrapper;
-mod directories;
 mod log_reader;
+mod metadata;
 mod mod_metadata;
 mod modrinth;
-mod account;
-mod install_content;
 
 pub(crate) fn is_single_component_path(path: &str) -> bool {
     let path = std::path::Path::new(path);

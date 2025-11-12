@@ -1,8 +1,14 @@
 use std::sync::{Arc, RwLock};
 
-use bridge::{handle::BackendHandle, install::ContentInstall, instance::InstanceID, message::{MessageToBackend, QuickPlayLaunch}, modal_action::ModalAction};
+use bridge::{
+    handle::BackendHandle,
+    install::ContentInstall,
+    instance::InstanceID,
+    message::{MessageToBackend, QuickPlayLaunch},
+    modal_action::ModalAction,
+};
 use gpui::{prelude::*, *};
-use gpui_component::{v_flex, Root};
+use gpui_component::{Root, v_flex};
 
 use crate::{entity::DataEntities, modals, ui::LauncherUI};
 
@@ -19,13 +25,18 @@ pub struct LauncherRoot {
 }
 
 impl LauncherRoot {
-    pub fn new(data: &DataEntities, panic_message: Arc<RwLock<Option<String>>>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        data: &DataEntities,
+        panic_message: Arc<RwLock<Option<String>>>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let launcher_ui = cx.new(|cx| LauncherUI::new(data, window, cx));
 
         Self {
             ui: launcher_ui,
             panic_message,
-            backend_handle: data.backend_handle.clone()
+            backend_handle: data.backend_handle.clone(),
         }
     }
 }
@@ -53,7 +64,14 @@ impl Render for LauncherRoot {
     }
 }
 
-pub fn start_instance(id: InstanceID, name: SharedString, quick_play: Option<QuickPlayLaunch>, backend_handle: &BackendHandle, window: &mut Window, cx: &mut App) {
+pub fn start_instance(
+    id: InstanceID,
+    name: SharedString,
+    quick_play: Option<QuickPlayLaunch>,
+    backend_handle: &BackendHandle,
+    window: &mut Window,
+    cx: &mut App,
+) {
     let modal_action = ModalAction::default();
 
     backend_handle.blocking_send(MessageToBackend::StartInstance {
@@ -62,12 +80,16 @@ pub fn start_instance(id: InstanceID, name: SharedString, quick_play: Option<Qui
         modal_action: modal_action.clone(),
     });
 
-
     let title: SharedString = format!("Launching {}", name).into();
     modals::generic::show_modal(window, cx, title, "Error starting instance".into(), modal_action);
 }
 
-pub fn start_install(content_install: ContentInstall, backend_handle: &BackendHandle, window: &mut Window, cx: &mut App) {
+pub fn start_install(
+    content_install: ContentInstall,
+    backend_handle: &BackendHandle,
+    window: &mut Window,
+    cx: &mut App,
+) {
     let modal_action = ModalAction::default();
 
     backend_handle.blocking_send(MessageToBackend::InstallContent {

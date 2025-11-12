@@ -39,15 +39,12 @@ fn read_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result<(usiz
         '0'..='9' | '.' | '-' => read_numeric_node(snbt)?,
         '{' => {
             *snbt = &snbt[1..];
-            (
-                NBTNode::Compound(read_compound(snbt, nodes)?),
-                TAG_COMPOUND_ID,
-            )
-        }
+            (NBTNode::Compound(read_compound(snbt, nodes)?), TAG_COMPOUND_ID)
+        },
         '[' => {
             *snbt = &snbt[1..];
             read_array_node(snbt, nodes)?
-        }
+        },
         '"' => (NBTNode::String(read_string(snbt)?), TAG_STRING_ID),
         't' => {
             if snbt.len() >= 4 && &snbt[..4] == "true" {
@@ -55,14 +52,14 @@ fn read_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result<(usiz
             } else {
                 bail!("unknown start of type: t");
             }
-        }
+        },
         'f' => {
             if snbt.len() >= 5 && &snbt[..5] == "false" {
                 (NBTNode::Byte(0), TAG_BYTE_ID)
             } else {
                 bail!("unknown start of type: f");
             }
-        }
+        },
         c => bail!("unknown start of type: {}", c),
     };
 
@@ -107,14 +104,14 @@ fn read_compound(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result<N
             Ok(_) => bail!("read_compound: duplicate key"),
             Err(index) => {
                 children.0.insert(index, (name, idx));
-            }
+            },
         }
 
         match peek_non_whitespace(snbt)? {
             '}' => {
                 *snbt = &snbt[1..];
                 return Ok(children);
-            }
+            },
             ',' => *snbt = &snbt[1..],
             c => bail!("read_compound: unknown continuation: {}", c),
         }
@@ -134,7 +131,7 @@ fn read_key(snbt: &mut &str) -> anyhow::Result<String> {
                     let string = snbt[..index].into();
                     *snbt = &snbt[index..];
                     return Ok(string);
-                }
+                },
                 c => bail!("read_key: invalid character: {}", c),
             }
         }
@@ -163,7 +160,7 @@ fn read_string(snbt: &mut &str) -> anyhow::Result<String> {
                         string.push_str(&snbt[start..index]);
                         start = index + 1;
                     }
-                }
+                },
                 '"' => {
                     if escaping {
                         escaping = false;
@@ -172,14 +169,14 @@ fn read_string(snbt: &mut &str) -> anyhow::Result<String> {
                         *snbt = &snbt[(index + 1)..];
                         return Ok(string);
                     }
-                }
+                },
                 c => {
                     if escaping {
                         bail!("read_string: unknown escape sequence: \\{}", c);
                     } else {
                         continue;
                     }
-                }
+                },
             }
         }
         bail!("read_string: unexpected end of input");
@@ -194,10 +191,10 @@ fn read_numeric_node(snbt: &mut &str) -> anyhow::Result<(NBTNode, TagType)> {
                 if index != 0 {
                     bail!("read_numeric_node: minus literal (-) is only valid at the beginning")
                 }
-            }
+            },
             '0'..='9' => {
                 continue;
-            }
+            },
             '.' => {
                 if has_decimal {
                     bail!("read_numeric_node: found multiple decimal points while parsing number");
@@ -205,32 +202,32 @@ fn read_numeric_node(snbt: &mut &str) -> anyhow::Result<(NBTNode, TagType)> {
                     has_decimal = true;
                 }
                 continue;
-            }
+            },
             'b' | 'B' => {
                 let number_string = &snbt[..index];
                 *snbt = &snbt[(index + 1)..];
                 return Ok((NBTNode::Byte(number_string.parse()?), TAG_BYTE_ID));
-            }
+            },
             's' | 'S' => {
                 let number_string = &snbt[..index];
                 *snbt = &snbt[(index + 1)..];
                 return Ok((NBTNode::Short(number_string.parse()?), TAG_SHORT_ID));
-            }
+            },
             'l' | 'L' => {
                 let number_string = &snbt[..index];
                 *snbt = &snbt[(index + 1)..];
                 return Ok((NBTNode::Long(number_string.parse()?), TAG_LONG_ID));
-            }
+            },
             'f' | 'F' => {
                 let number_string = &snbt[..index];
                 *snbt = &snbt[(index + 1)..];
                 return Ok((NBTNode::Float(number_string.parse()?), TAG_FLOAT_ID));
-            }
+            },
             'd' | 'D' => {
                 let number_string = &snbt[..index];
                 *snbt = &snbt[(index + 1)..];
                 return Ok((NBTNode::Double(number_string.parse()?), TAG_DOUBLE_ID));
-            }
+            },
             _ => {
                 let number_string = &snbt[..index];
                 *snbt = &snbt[index..];
@@ -239,7 +236,7 @@ fn read_numeric_node(snbt: &mut &str) -> anyhow::Result<(NBTNode, TagType)> {
                 } else {
                     return Ok((NBTNode::Int(number_string.parse()?), TAG_INT_ID));
                 }
-            }
+            },
         }
     }
     bail!("read_numeric_node: unexpected end of input");
@@ -262,11 +259,8 @@ fn read_array_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result
                 _ => bail!("read_array_node: expect semicolon (;) after B"),
             }
 
-            Ok((
-                NBTNode::ByteArray(read_primitive_array(snbt)?),
-                TAG_BYTE_ARRAY_ID,
-            ))
-        }
+            Ok((NBTNode::ByteArray(read_primitive_array(snbt)?), TAG_BYTE_ARRAY_ID))
+        },
         // Primitive IntArray
         'I' => {
             *snbt = &snbt[1..];
@@ -275,11 +269,8 @@ fn read_array_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result
                 _ => bail!("read_array_node: expect semicolon (;) after I"),
             }
 
-            Ok((
-                NBTNode::IntArray(read_primitive_array(snbt)?),
-                TAG_INT_ARRAY_ID,
-            ))
-        }
+            Ok((NBTNode::IntArray(read_primitive_array(snbt)?), TAG_INT_ARRAY_ID))
+        },
         // Primitive LongArray
         'L' => {
             *snbt = &snbt[1..];
@@ -288,11 +279,8 @@ fn read_array_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result
                 _ => bail!("read_array_node: expect semicolon (;) after L"),
             }
 
-            Ok((
-                NBTNode::LongArray(read_primitive_array(snbt)?),
-                TAG_LONG_ARRAY_ID,
-            ))
-        }
+            Ok((NBTNode::LongArray(read_primitive_array(snbt)?), TAG_LONG_ARRAY_ID))
+        },
         // Special case for empty list `[]`
         ']' => {
             *snbt = &snbt[1..];
@@ -303,7 +291,7 @@ fn read_array_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result
                 },
                 TAG_LIST_ID,
             ))
-        }
+        },
         // Normal list
         _ => {
             let mut children = Vec::new();
@@ -322,7 +310,7 @@ fn read_array_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result
                             },
                             TAG_LIST_ID,
                         ));
-                    }
+                    },
                     ',' => *snbt = &snbt[1..],
                     c => bail!("read_array_node: unknown continuation: {}", c),
                 }
@@ -334,7 +322,7 @@ fn read_array_node(snbt: &mut &str, nodes: &mut Slab<NBTNode>) -> anyhow::Result
                     bail!("read_array_node: elements in array have different type")
                 }
             }
-        }
+        },
     }
 }
 
@@ -348,42 +336,40 @@ fn read_primitive_array<T: FromStr>(snbt: &mut &str) -> anyhow::Result<Vec<T>> {
                     PrimArrParseState::WaitingForComma => (),
                     PrimArrParseState::WaitingForNumber => {
                         bail!("read_primitive_array: expected numeric character, got ]")
-                    }
+                    },
                     PrimArrParseState::InNumber { start } => {
-                        let value: T = snbt[start..index].parse().map_err(|_| {
-                            anyhow::anyhow!("read_primitive_array: failed to parse")
-                        })?;
+                        let value: T = snbt[start..index]
+                            .parse()
+                            .map_err(|_| anyhow::anyhow!("read_primitive_array: failed to parse"))?;
                         values.push(value);
-                    }
+                    },
                 }
 
                 *snbt = &snbt[(index + 1)..];
                 return Ok(values);
-            }
+            },
             '0'..='9' | '-' => match state {
-                PrimArrParseState::WaitingForNumber => {
-                    state = PrimArrParseState::InNumber { start: index }
-                }
+                PrimArrParseState::WaitingForNumber => state = PrimArrParseState::InNumber { start: index },
                 PrimArrParseState::InNumber { start: _ } => continue,
                 PrimArrParseState::WaitingForComma => {
                     bail!("read_primitive_array: expected comma, got numeric character")
-                }
+                },
             },
             ',' => {
                 match state {
                     PrimArrParseState::WaitingForComma => (),
                     PrimArrParseState::WaitingForNumber => {
                         bail!("read_primitive_array: expected numeric character, got comma")
-                    }
+                    },
                     PrimArrParseState::InNumber { start } => {
-                        let value: T = snbt[start..index].parse().map_err(|_| {
-                            anyhow::anyhow!("read_primitive_array: failed to parse")
-                        })?;
+                        let value: T = snbt[start..index]
+                            .parse()
+                            .map_err(|_| anyhow::anyhow!("read_primitive_array: failed to parse"))?;
                         values.push(value);
-                    }
+                    },
                 }
                 state = PrimArrParseState::WaitingForNumber;
-            }
+            },
             ' ' => continue,
             c => {
                 // todo: this is very permissive
@@ -391,20 +377,19 @@ fn read_primitive_array<T: FromStr>(snbt: &mut &str) -> anyhow::Result<Vec<T>> {
                 match state {
                     PrimArrParseState::WaitingForComma => {
                         bail!("read_primitive_array: expected comma, got `{}`", c)
-                    }
-                    PrimArrParseState::WaitingForNumber => bail!(
-                        "read_primitive_array: expected numeric character, got `{}`",
-                        c
-                    ),
+                    },
+                    PrimArrParseState::WaitingForNumber => {
+                        bail!("read_primitive_array: expected numeric character, got `{}`", c)
+                    },
                     PrimArrParseState::InNumber { start } => {
-                        let value: T = snbt[start..index].parse().map_err(|_| {
-                            anyhow::anyhow!("read_primitive_array: failed to parse")
-                        })?;
+                        let value: T = snbt[start..index]
+                            .parse()
+                            .map_err(|_| anyhow::anyhow!("read_primitive_array: failed to parse"))?;
                         values.push(value);
-                    }
+                    },
                 }
                 state = PrimArrParseState::WaitingForComma;
-            }
+            },
         }
     }
     bail!("read_array_node: unexpected end of input");

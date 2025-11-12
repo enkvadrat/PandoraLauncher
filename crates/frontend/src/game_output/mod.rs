@@ -3,7 +3,12 @@ use std::{cell::RefCell, collections::HashMap, num::NonZeroUsize, ops::Range, rc
 use ftree::FenwickTree;
 use gpui::{prelude::*, *};
 use gpui_component::{
-    button::Button, h_flex, input::{Input, InputEvent, InputState}, scroll::{ScrollHandleOffsetable, Scrollbar, ScrollbarState}, v_flex, ActiveTheme as _, Icon, IconName, Sizable
+    ActiveTheme as _, Icon, IconName, Sizable,
+    button::Button,
+    h_flex,
+    input::{Input, InputEvent, InputState},
+    scroll::{ScrollHandleOffsetable, Scrollbar, ScrollbarState},
+    v_flex,
 };
 use lru::LruCache;
 use rustc_hash::FxBuildHasher;
@@ -70,7 +75,7 @@ impl Default for GameOutput {
                     last_time: None,
                     last_time_millis: 0,
                     thread: HashMap::new(),
-                    item_lines: LruCache::with_hasher(NonZeroUsize::new(1024).unwrap(), FxBuildHasher)
+                    item_lines: LruCache::with_hasher(NonZeroUsize::new(1024).unwrap(), FxBuildHasher),
                 },
                 search_query: SharedString::new_static(""),
             }),
@@ -87,7 +92,14 @@ impl GameOutput {
         self.pending.push((time, thread, level, text));
     }
 
-    fn shape_log_level(&self, level: &'static str, color: Hsla, text_system: &Arc<WindowTextSystem>, text_style: &TextStyle, font_size: Pixels) -> Arc<ShapedLine> {
+    fn shape_log_level(
+        &self,
+        level: &'static str,
+        color: Hsla,
+        text_system: &Arc<WindowTextSystem>,
+        text_style: &TextStyle,
+        font_size: Pixels,
+    ) -> Arc<ShapedLine> {
         let level_run = TextRun {
             len: level.len(),
             font: self.font.clone(),
@@ -96,12 +108,7 @@ impl GameOutput {
             underline: text_style.underline,
             strikethrough: text_style.strikethrough,
         };
-        Arc::new(text_system.shape_line(
-            SharedString::new_static(level),
-            font_size,
-            &[level_run],
-            None,
-        ))
+        Arc::new(text_system.shape_line(SharedString::new_static(level), font_size, &[level_run], None))
     }
 
     pub fn apply_pending(&mut self, window: &mut Window, _cx: &mut App) {
@@ -160,7 +167,7 @@ impl GameOutput {
                         backup_total_lines_while_skipped,
                         total_lines: 0,
                         highlighted_text: None,
-                        skip: true
+                        skip: true,
                     });
                     continue;
                 }
@@ -178,7 +185,7 @@ impl GameOutput {
                 backup_total_lines_while_skipped: total_lines,
                 total_lines,
                 highlighted_text,
-                skip: false
+                skip: false,
             });
         }
     }
@@ -209,12 +216,20 @@ struct GameOutputItem {
     backup_total_lines_while_skipped: usize,
     total_lines: usize,
     highlighted_text: Option<(usize, Range<usize>)>,
-    skip: bool
+    skip: bool,
 }
 
 impl GameOutputItem {
-    pub fn compute_wrapped_text<'a>(&mut self, wrap_width: Pixels, text_system: &Arc<WindowTextSystem>, font: &Font, font_size: Pixels,
-            text_style: &TextStyle, line_wrapper: &mut LineWrapperHandle, cache: &'a mut CachedShapedLines) -> &'a [ShapedLine] {
+    pub fn compute_wrapped_text<'a>(
+        &mut self,
+        wrap_width: Pixels,
+        text_system: &Arc<WindowTextSystem>,
+        font: &Font,
+        font_size: Pixels,
+        text_style: &TextStyle,
+        line_wrapper: &mut LineWrapperHandle,
+        cache: &'a mut CachedShapedLines,
+    ) -> &'a [ShapedLine] {
         let mut recompute = true;
 
         if let Some(last_wrapped) = cache.item_lines.get(&self.index)
@@ -229,10 +244,10 @@ impl GameOutputItem {
                 let boundaries = line_wrapper.wrap_line(&fragments, wrap_width);
 
                 let mut handle_segment = |wrapped_line: SharedString, from, to| {
-                    let runs: &[TextRun] = if let Some((highlight_line, highlight_range)) = &self.highlighted_text &&
-                            *highlight_line == original_line_index &&
-                            highlight_range.start < to &&
-                            highlight_range.end > from
+                    let runs: &[TextRun] = if let Some((highlight_line, highlight_range)) = &self.highlighted_text
+                        && *highlight_line == original_line_index
+                        && highlight_range.start < to
+                        && highlight_range.end > from
                     {
                         let highlight_start = highlight_range.start.max(from);
                         let highlight_end = highlight_range.end.min(to);
@@ -274,12 +289,7 @@ impl GameOutputItem {
                         }]
                     };
 
-                    let shaped = text_system.shape_line(
-                        wrapped_line,
-                        font_size,
-                        runs,
-                        None,
-                    );
+                    let shaped = text_system.shape_line(wrapped_line, font_size, runs, None);
                     wrapped.push(shaped);
                 };
 
@@ -300,10 +310,13 @@ impl GameOutputItem {
                 (handle_segment)(wrapped_line, last_boundary_ix, line.len());
             }
 
-            cache.item_lines.put(self.index, WrappedLines {
-                wrap_width,
-                lines: wrapped
-            });
+            cache.item_lines.put(
+                self.index,
+                WrappedLines {
+                    wrap_width,
+                    lines: wrapped,
+                },
+            );
         }
 
         cache.item_lines.get(&self.index).unwrap().lines.as_slice()
@@ -407,7 +420,10 @@ impl Element for GameOutputList {
                         let font_size = text_style.font_size.to_pixels(window.rem_size());
                         let line_height = font_size * 1.25;
 
-                        let text_width = bounds.size.width - game_output.time_column_width - game_output.thread_column_width - game_output.level_column_width;
+                        let text_width = bounds.size.width
+                            - game_output.time_column_width
+                            - game_output.thread_column_width
+                            - game_output.level_column_width;
                         let wrap_width = text_width.max(font_size * 30);
 
                         let mut line_wrapper = window.text_system().line_wrapper(game_output.font.clone(), font_size);
@@ -434,7 +450,8 @@ impl Element for GameOutputList {
                                     &mut item_state.total_line_count,
                                     &mut line_wrapper,
                                     &mut item_state.cached_shaped_lines,
-                                    window, cx
+                                    window,
+                                    cx,
                                 );
                             } else {
                                 paint_lines::<false>(
@@ -454,7 +471,8 @@ impl Element for GameOutputList {
                                     &mut item_state.total_line_count,
                                     &mut line_wrapper,
                                     &mut item_state.cached_shaped_lines,
-                                    window, cx
+                                    window,
+                                    cx,
                                 );
                             }
                         }
@@ -468,8 +486,7 @@ impl Element for GameOutputList {
                             0
                         };
                     });
-                }
-            );
+                });
         });
     }
 }
@@ -482,8 +499,15 @@ struct ScrollRenderInfo {
 }
 
 impl GameOutput {
-    fn update_scrolling(&mut self, line_height: Pixels, wrap_width: Pixels, font_size: Pixels, text_style: &TextStyle,
-            line_wrapper: &mut LineWrapperHandle, text_system: &Arc<WindowTextSystem>) -> ScrollRenderInfo {
+    fn update_scrolling(
+        &mut self,
+        line_height: Pixels,
+        wrap_width: Pixels,
+        font_size: Pixels,
+        text_style: &TextStyle,
+        line_wrapper: &mut LineWrapperHandle,
+        text_system: &Arc<WindowTextSystem>,
+    ) -> ScrollRenderInfo {
         let mut scroll_state = self.scroll_state.borrow_mut();
 
         let Some(item_state) = self.item_state.as_mut() else {
@@ -498,7 +522,11 @@ impl GameOutput {
         if item_state.items.is_empty() {
             scroll_state.scrolling = GameOutputScrolling::Bottom;
             item_state.last_scrolled_item = 0;
-            return ScrollRenderInfo { item: 0, reverse: false, offset: Pixels::ZERO };
+            return ScrollRenderInfo {
+                item: 0,
+                reverse: false,
+                offset: Pixels::ZERO,
+            };
         }
 
         let max_offset = (item_state.total_line_count * line_height - scroll_state.bounds_y).max(px(1.0));
@@ -531,22 +559,26 @@ impl GameOutput {
                             item: item_state.items.len().saturating_sub(1),
                             reverse: true,
                             offset: Pixels::ZERO,
-                        }
+                        };
                     }
 
                     if offset < px(-1.0)
-                        && let Some(active_drag) = &scroll_state.active_drag {
-                            let drag_pivot = active_drag.drag_pivot.min(Pixels::ZERO);
-                            let real_pivot = active_drag.real_pivot.min(Pixels::ZERO);
-                            let new_max_offset = (item_state.total_line_count * line_height - scroll_state.bounds_y).max(px(1.0));
-                            let old_max_offset = (active_drag.start_content_height - scroll_state.bounds_y).max(px(1.0));
+                        && let Some(active_drag) = &scroll_state.active_drag
+                    {
+                        let drag_pivot = active_drag.drag_pivot.min(Pixels::ZERO);
+                        let real_pivot = active_drag.real_pivot.min(Pixels::ZERO);
+                        let new_max_offset =
+                            (item_state.total_line_count * line_height - scroll_state.bounds_y).max(px(1.0));
+                        let old_max_offset = (active_drag.start_content_height - scroll_state.bounds_y).max(px(1.0));
 
-                            if offset < drag_pivot {
-                                effective_offset = (offset - drag_pivot) / (-old_max_offset - drag_pivot) * (-new_max_offset - real_pivot) + real_pivot;
-                            } else {
-                                effective_offset = offset/drag_pivot*real_pivot;
-                            }
+                        if offset < drag_pivot {
+                            effective_offset = (offset - drag_pivot) / (-old_max_offset - drag_pivot)
+                                * (-new_max_offset - real_pivot)
+                                + real_pivot;
+                        } else {
+                            effective_offset = offset / drag_pivot * real_pivot;
                         }
+                    }
 
                     if let Some(active_drag) = &mut scroll_state.active_drag {
                         active_drag.actual_offset = effective_offset;
@@ -569,8 +601,15 @@ impl GameOutput {
                             if item.skip {
                                 continue;
                             }
-                            let lines = item.compute_wrapped_text(wrap_width, text_system,
-                                &self.font, font_size, text_style, line_wrapper, &mut item_state.cached_shaped_lines);
+                            let lines = item.compute_wrapped_text(
+                                wrap_width,
+                                text_system,
+                                &self.font,
+                                font_size,
+                                text_style,
+                                line_wrapper,
+                                &mut item_state.cached_shaped_lines,
+                            );
                             let line_count = lines.len().max(1);
                             if line_count != item.total_lines {
                                 resized_above += line_count * line_height - item.total_lines * line_height;
@@ -608,8 +647,15 @@ impl GameOutput {
                             if item.skip {
                                 continue;
                             }
-                            let lines = item.compute_wrapped_text(wrap_width, text_system,
-                                &self.font, font_size, text_style, line_wrapper, &mut item_state.cached_shaped_lines);
+                            let lines = item.compute_wrapped_text(
+                                wrap_width,
+                                text_system,
+                                &self.font,
+                                font_size,
+                                text_style,
+                                line_wrapper,
+                                &mut item_state.cached_shaped_lines,
+                            );
                             let line_count = lines.len().max(1);
                             if line_count != item.total_lines {
                                 if item.total_lines < line_count {
@@ -627,11 +673,10 @@ impl GameOutput {
                                 break;
                             }
                         }
-                        if changed
-                            && let Some(active_drag) = &mut scroll_state.active_drag {
-                                active_drag.drag_pivot = offset;
-                                active_drag.real_pivot = effective_offset;
-                            }
+                        if changed && let Some(active_drag) = &mut scroll_state.active_drag {
+                            active_drag.drag_pivot = offset;
+                            active_drag.real_pivot = effective_offset;
+                        }
                     }
 
                     item_state.last_scrolled_item = item_index;
@@ -640,7 +685,7 @@ impl GameOutput {
                         reverse: false,
                         offset: render_offset,
                     };
-                };
+                }
                 unreachable!();
             },
         }
@@ -665,7 +710,7 @@ fn paint_lines<'a, const REVERSE: bool>(
     line_wrapper: &mut LineWrapperHandle,
     cache: &mut CachedShapedLines,
     window: &mut Window,
-    cx: &mut App
+    cx: &mut App,
 ) {
     let mut text_origin = bounds.origin;
     if REVERSE {
@@ -680,8 +725,15 @@ fn paint_lines<'a, const REVERSE: bool>(
         }
         let has_highlighted_text = item.highlighted_text.is_some();
 
-        let lines = item.compute_wrapped_text(wrap_width, window.text_system(),
-            font, font_size, text_style, line_wrapper, cache);
+        let lines = item.compute_wrapped_text(
+            wrap_width,
+            window.text_system(),
+            font,
+            font_size,
+            text_style,
+            line_wrapper,
+            cache,
+        );
 
         let line_count = lines.len().max(1);
 
@@ -743,16 +795,11 @@ fn paint_lines<'a, const REVERSE: bool>(
                     underline: text_style.underline,
                     strikethrough: text_style.strikethrough,
                 };
-                let shaped_time = Arc::new(window.text_system().shape_line(
-                    time.into(),
-                    font_size,
-                    &[time_run],
-                    None,
-                ));
+                let shaped_time = Arc::new(window.text_system().shape_line(time.into(), font_size, &[time_run], None));
 
                 item.time = TimeShapedLine::Shaped(Arc::clone(&shaped_time));
 
-                *time_column_width = (*time_column_width).max(shaped_time.width + font_size/2.0);
+                *time_column_width = (*time_column_width).max(shaped_time.width + font_size / 2.0);
 
                 cache.last_time = Some(shaped_time);
                 cache.last_time_millis = timestamp;
@@ -784,19 +831,14 @@ fn paint_lines<'a, const REVERSE: bool>(
                 }];
 
                 let mut line_wrapper = window.text_system().line_wrapper(font.clone(), font_size);
-                let truncated = line_wrapper.truncate_line(thread_name.clone().into(), px(150.0),
-                    "…", &mut thread_run);
+                let truncated = line_wrapper.truncate_line(thread_name.clone().into(), px(150.0), "…", &mut thread_run);
 
-                let shaped_thread_name = Arc::new(window.text_system().shape_line(
-                    truncated,
-                    font_size,
-                    &thread_run,
-                    None,
-                ));
+                let shaped_thread_name =
+                    Arc::new(window.text_system().shape_line(truncated, font_size, &thread_run, None));
 
                 item.thread = ThreadShapedLine::Shaped(Arc::clone(&shaped_thread_name));
 
-                *thread_column_width = (*thread_column_width).max(shaped_thread_name.width + font_size/2.0);
+                *thread_column_width = (*thread_column_width).max(shaped_thread_name.width + font_size / 2.0);
 
                 cache.thread.insert(thread_name, shaped_thread_name);
             }
@@ -805,7 +847,7 @@ fn paint_lines<'a, const REVERSE: bool>(
         // Render thread text
         if let ThreadShapedLine::Shaped(shaped_thread) = &item.thread {
             let mut thread_origin = time_origin;
-            thread_origin.x += *time_column_width + *thread_column_width - shaped_thread.width - font_size/2.0;
+            thread_origin.x += *time_column_width + *thread_column_width - shaped_thread.width - font_size / 2.0;
             _ = shaped_thread.paint(thread_origin, line_height, window, cx);
         }
 
@@ -845,7 +887,7 @@ pub struct GameOutputRoot {
     game_output: Entity<GameOutput>,
     search_state: Entity<InputState>,
     _search_task: Task<()>,
-    _search_input_subscription: Subscription
+    _search_input_subscription: Subscription,
 }
 
 #[derive(Clone)]
@@ -875,13 +917,16 @@ pub enum GameOutputScrolling {
     #[default]
     Bottom,
     Top {
-        offset: Pixels
-    }
+        offset: Pixels,
+    },
 }
 
 impl GameOutputScrollState {
     pub fn content_height_for_scrollbar(&self) -> Pixels {
-        self.active_drag.as_ref().map(|v| v.start_content_height).unwrap_or(self.lines * self.line_height)
+        self.active_drag
+            .as_ref()
+            .map(|v| v.start_content_height)
+            .unwrap_or(self.lines * self.line_height)
     }
 
     pub fn max_scroll_amount(&self) -> Pixels {
@@ -894,9 +939,7 @@ impl GameOutputScrollState {
                 let content_height = self.content_height_for_scrollbar();
                 -(content_height - self.bounds_y)
             },
-            GameOutputScrolling::Top { offset } => {
-                offset
-            },
+            GameOutputScrolling::Top { offset } => offset,
         }
     }
 
@@ -905,7 +948,7 @@ impl GameOutputScrollState {
         let new_offset = new_offset.min(Pixels::ZERO);
         let total_offset = -(content_height - self.bounds_y);
 
-        if new_offset < total_offset + self.line_height/4.0 {
+        if new_offset < total_offset + self.line_height / 4.0 {
             self.scrolling = GameOutputScrolling::Bottom;
         } else {
             self.scrolling = GameOutputScrolling::Top { offset: new_offset };
@@ -936,7 +979,7 @@ impl ScrollHandleOffsetable for ScrollHandler {
             start_content_height: state.lines * state.line_height,
             drag_pivot: Pixels::ZERO,
             real_pivot: Pixels::ZERO,
-            actual_offset: state.offset()
+            actual_offset: state.offset(),
         });
     }
 
@@ -949,13 +992,17 @@ impl ScrollHandleOffsetable for ScrollHandler {
 }
 
 impl GameOutputRoot {
-    pub fn new(keep_alive: KeepAlive, game_output: Entity<GameOutput>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    pub fn new(
+        keep_alive: KeepAlive,
+        game_output: Entity<GameOutput>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) -> Self {
         let scroll_state = Rc::clone(&game_output.read(cx).scroll_state);
 
         let search_state = cx.new(|cx| InputState::new(window, cx).placeholder("Search").clean_on_escape());
 
-        let _search_input_subscription =
-            cx.subscribe_in(&search_state, window, Self::on_search_input_event);
+        let _search_input_subscription = cx.subscribe_in(&search_state, window, Self::on_search_input_event);
 
         Self {
             scrollbar_state: ScrollbarState::default(),
@@ -964,7 +1011,7 @@ impl GameOutputRoot {
             game_output,
             search_state,
             _search_task: Task::ready(()),
-            _search_input_subscription
+            _search_input_subscription,
         }
     }
 
@@ -979,9 +1026,7 @@ impl GameOutputRoot {
             return;
         };
 
-        let item_state = self.game_output.update(cx, |game_output, _| {
-            game_output.item_state.take()
-        });
+        let item_state = self.game_output.update(cx, |game_output, _| game_output.item_state.take());
 
         let Some(mut item_state) = item_state else {
             return; // Already searching
@@ -1051,10 +1096,10 @@ impl GameOutputRoot {
                     });
                     this.search_state.update(cx, |input, cx| input.set_loading(false, window, cx));
                     cx.notify();
-                }).unwrap();
+                })
+                .unwrap();
             });
         }
-
 
         state.update(cx, |input, cx| input.set_loading(true, window, cx));
     }
@@ -1062,8 +1107,7 @@ impl GameOutputRoot {
 
 impl Render for GameOutputRoot {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let search = Input::new(&self.search_state)
-            .prefix(Icon::new(IconName::Search).small());
+        let search = Input::new(&self.search_state).prefix(Icon::new(IconName::Search).small());
 
         let bar = h_flex()
             .w_full()
@@ -1099,8 +1143,15 @@ impl Render for GameOutputRoot {
                         interactivity: Interactivity::new(),
                         game_output: self.game_output.clone(),
                     })
-                    .child(div().w_3().h_full().border_y_12().child(Scrollbar::vertical(&self.scrollbar_state, &self.scroll_handler)))
-            ).on_scroll_wheel(cx.listener(|root, event: &ScrollWheelEvent, _, cx| {
+                    .child(
+                        div()
+                            .w_3()
+                            .h_full()
+                            .border_y_12()
+                            .child(Scrollbar::vertical(&self.scrollbar_state, &self.scroll_handler)),
+                    ),
+            )
+            .on_scroll_wheel(cx.listener(|root, event: &ScrollWheelEvent, _, cx| {
                 let state = root.scroll_handler.state.borrow();
                 let delta = event.delta.pixel_delta(state.line_height).y;
                 let max_scroll_amount = state.max_scroll_amount();

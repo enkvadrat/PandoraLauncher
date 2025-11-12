@@ -29,9 +29,7 @@ impl BackendAccountInfo {
                 head: account.head_32x.clone(),
             });
         }
-        accounts.sort_by(|a, b| {
-            lexical_sort::natural_lexical_cmp(&a.username, &b.username)
-        });
+        accounts.sort_by(|a, b| lexical_sort::natural_lexical_cmp(&a.username, &b.username));
         MessageToFrontend::AccountsUpdated {
             accounts: accounts.into(),
             selected_account: self.selected_account,

@@ -1,9 +1,9 @@
 pub mod assets_index;
+pub mod fabric_launch;
+pub mod fabric_loader_manifest;
 pub mod java_runtime_component;
 pub mod java_runtimes;
-pub mod version_manifest;
-pub mod version;
-pub mod fabric_loader_manifest;
-pub mod fabric_launch;
 pub mod loader;
 pub mod modrinth;
+pub mod version;
+pub mod version_manifest;

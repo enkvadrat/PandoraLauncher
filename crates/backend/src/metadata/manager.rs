@@ -1,7 +1,20 @@
-use std::{collections::HashMap, fmt::Display, path::{Path, PathBuf}, sync::Arc};
+use std::{
+    collections::HashMap,
+    fmt::Display,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
 use bridge::{handle::FrontendHandle, message::MessageToFrontend};
-use schema::{assets_index::AssetsIndex, fabric_launch::FabricLaunch, fabric_loader_manifest::{FabricLoaderManifest, FABRIC_LOADER_MANIFEST_URL}, java_runtime_component::JavaRuntimeComponentManifest, java_runtimes::{JavaRuntimes, JAVA_RUNTIMES_URL}, version::MinecraftVersion, version_manifest::{MinecraftVersionLink, MinecraftVersionManifest, MOJANG_VERSION_MANIFEST_URL}};
+use schema::{
+    assets_index::AssetsIndex,
+    fabric_launch::FabricLaunch,
+    fabric_loader_manifest::{FABRIC_LOADER_MANIFEST_URL, FabricLoaderManifest},
+    java_runtime_component::JavaRuntimeComponentManifest,
+    java_runtimes::{JAVA_RUNTIMES_URL, JavaRuntimes},
+    version::MinecraftVersion,
+    version_manifest::{MOJANG_VERSION_MANIFEST_URL, MinecraftVersionLink, MinecraftVersionManifest},
+};
 use serde::de::DeserializeOwned;
 use sha1::{Digest, Sha1};
 use tokio::{runtime::Handle, task::JoinHandle};
@@ -30,7 +43,7 @@ pub struct MetadataManager {
 
     http_client: reqwest::Client,
     sender: FrontendHandle,
-    runtime: Handle
+    runtime: Handle,
 }
 
 pub trait MetadataItem {
@@ -42,7 +55,10 @@ pub trait MetadataItem {
     fn data_hash(&self) -> Option<Ustr> {
         None
     }
-    fn try_send_to_backend(_value: Result<Arc<Self::T>, MetaLoadError>, _sender: FrontendHandle) -> impl std::future::Future<Output = ()> + Send {
+    fn try_send_to_backend(
+        _value: Result<Arc<Self::T>, MetaLoadError>,
+        _sender: FrontendHandle,
+    ) -> impl std::future::Future<Output = ()> + Send {
         async {}
     }
 }
@@ -89,7 +105,7 @@ impl MetadataItem for MojangJavaRuntimesMetadata {
 
 pub struct MinecraftVersionMetadata<'v>(pub &'v MinecraftVersionLink);
 
-impl <'v> MetadataItem for MinecraftVersionMetadata<'v> {
+impl<'v> MetadataItem for MinecraftVersionMetadata<'v> {
     type T = MinecraftVersion;
 
     fn url(&self) -> Ustr {
@@ -301,7 +317,7 @@ pub enum MetaLoadState<T> {
     Unloaded,
     Pending(JoinHandle<Result<Arc<T>, MetaLoadError>>),
     Loaded(Arc<T>),
-    Error(MetaLoadError)
+    Error(MetaLoadError),
 }
 
 impl MetadataManager {
@@ -316,7 +332,7 @@ impl MetadataManager {
 
             http_client,
             sender,
-            runtime
+            runtime,
         }
     }
 
@@ -325,14 +341,28 @@ impl MetadataManager {
         let mut state = state.lock().await;
         if matches!(*state, MetaLoadState::Unloaded) {
             let cache_file = item.cache_file(self);
-            Self::inner_start_loading(&mut *state, item, Some(cache_file), &self.http_client, &self.runtime, self.sender.clone());
+            Self::inner_start_loading(
+                &mut *state,
+                item,
+                Some(cache_file),
+                &self.http_client,
+                &self.runtime,
+                self.sender.clone(),
+            );
         }
     }
 
     pub async fn force_reload<I: MetadataItem>(&self, item: &I) {
         let state = item.state(&self.states);
         let mut state = state.lock().await;
-        Self::inner_start_loading(&mut *state, item, None::<PathBuf>, &self.http_client, &self.runtime, self.sender.clone());
+        Self::inner_start_loading(
+            &mut *state,
+            item,
+            None::<PathBuf>,
+            &self.http_client,
+            &self.runtime,
+            self.sender.clone(),
+        );
     }
 
     pub async fn fetch<I: MetadataItem>(&self, item: &I) -> Result<Arc<<I as MetadataItem>::T>, MetaLoadError> {
@@ -342,7 +372,14 @@ impl MetadataManager {
         Self::inner_fetch(&mut *state, item, cache_file, &self.http_client, &self.runtime, self.sender.clone()).await
     }
 
-    fn inner_start_loading<I: MetadataItem>(state: &mut MetaLoadState<I::T>, item: &I, cache_file: Option<impl AsRef<Path> + Send + Sync + 'static>, http_client: &reqwest::Client, runtime: &Handle, sender: FrontendHandle) {
+    fn inner_start_loading<I: MetadataItem>(
+        state: &mut MetaLoadState<I::T>,
+        item: &I,
+        cache_file: Option<impl AsRef<Path> + Send + Sync + 'static>,
+        http_client: &reqwest::Client,
+        runtime: &Handle,
+        sender: FrontendHandle,
+    ) {
         let url = item.url();
         let http_client = http_client.clone();
         let expected_hash = item.data_hash().and_then(|sha1| {
@@ -426,11 +463,15 @@ impl MetadataManager {
                 }
 
                 Ok(Arc::new(meta))
-            }.await;
+            }
+            .await;
 
             if let Err(error) = &result {
                 if let Some(file_fallback) = file_fallback {
-                    eprintln!("Error while fetching metadata {:?}, using file fallback: {error:?}", std::any::type_name::<I::T>());
+                    eprintln!(
+                        "Error while fetching metadata {:?}, using file fallback: {error:?}",
+                        std::any::type_name::<I::T>()
+                    );
                     result = Ok(file_fallback);
                 } else {
                     eprintln!("Error while fetching metadata {:?}: {error:?}", std::any::type_name::<I::T>());
@@ -445,7 +486,14 @@ impl MetadataManager {
         *state = MetaLoadState::Pending(join_handle);
     }
 
-     async fn inner_fetch<I: MetadataItem>(state: &mut MetaLoadState<I::T>, item: &I, cache_file: impl AsRef<Path> + Send + Sync + 'static, http_client: &reqwest::Client, runtime: &Handle, sender: FrontendHandle) -> Result<Arc<I::T>, MetaLoadError> {
+    async fn inner_fetch<I: MetadataItem>(
+        state: &mut MetaLoadState<I::T>,
+        item: &I,
+        cache_file: impl AsRef<Path> + Send + Sync + 'static,
+        http_client: &reqwest::Client,
+        runtime: &Handle,
+        sender: FrontendHandle,
+    ) -> Result<Arc<I::T>, MetaLoadError> {
         if let MetaLoadState::Unloaded = state {
             Self::inner_start_loading(state, item, Some(cache_file), http_client, runtime, sender);
         }
@@ -465,12 +513,8 @@ impl MetadataManager {
                     },
                 }
             },
-            MetaLoadState::Loaded(value) => {
-                Ok(Arc::clone(value))
-            },
-            MetaLoadState::Error(meta_load_error) => {
-                Err(meta_load_error.clone())
-            },
+            MetaLoadState::Loaded(value) => Ok(Arc::clone(value)),
+            MetaLoadState::Error(meta_load_error) => Err(meta_load_error.clone()),
         }
     }
 }

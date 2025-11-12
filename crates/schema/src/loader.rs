@@ -35,7 +35,7 @@ impl Loader {
             "Fabric" | "fabric" => Self::Fabric,
             "Forge" | "forge" => Self::Forge,
             "NeoForge" | "neoforge" => Self::NeoForge,
-            _ => Self::Unknown
+            _ => Self::Unknown,
         }
     }
 

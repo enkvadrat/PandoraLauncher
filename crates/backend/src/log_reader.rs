@@ -1,6 +1,13 @@
-use std::{borrow::Cow, io::{BufRead, BufReader}, process::ChildStdout, sync::{atomic::AtomicUsize, Arc}};
+use std::{
+    borrow::Cow,
+    io::{BufRead, BufReader},
+    process::ChildStdout,
+    sync::{Arc, atomic::AtomicUsize},
+};
 
-use bridge::{game_output::GameOutputLogLevel, handle::FrontendHandle, keep_alive::KeepAlive, message::MessageToFrontend};
+use bridge::{
+    game_output::GameOutputLogLevel, handle::FrontendHandle, keep_alive::KeepAlive, message::MessageToFrontend,
+};
 use chrono::Utc;
 
 static GAME_OUTPUT_ID: AtomicUsize = AtomicUsize::new(0);
@@ -14,10 +21,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
 
         let keep_alive = KeepAlive::new();
         let keep_alive_handle = keep_alive.create_handle();
-        sender.blocking_send(MessageToFrontend::CreateGameOutputWindow {
-            id,
-            keep_alive
-        });
+        sender.blocking_send(MessageToFrontend::CreateGameOutputWindow { id, keep_alive });
 
         let mut reader = quick_xml::reader::Reader::from_reader(BufReader::new(stdout));
 
@@ -73,7 +77,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                         text: Arc::new([Arc::from("<end of output>")]),
                     });
                     break;
-                }
+                },
                 Ok(quick_xml::events::Event::Start(e)) => {
                     match stack.last_mut() {
                         None => {
@@ -123,41 +127,48 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                                             b"logger" => {},
                                             _ => {
                                                 if cfg!(debug_assertions) {
-                                                    panic!("Unknown attribute on log4j:Event: {:?}", String::from_utf8_lossy(key))
+                                                    panic!(
+                                                        "Unknown attribute on log4j:Event: {:?}",
+                                                        String::from_utf8_lossy(key)
+                                                    )
                                                 }
-                                            }
+                                            },
                                         }
                                     }
-                                    stack.push(ParseState::Event { timestamp, thread, level, text: None, throwable: None });
-                                }
+                                    stack.push(ParseState::Event {
+                                        timestamp,
+                                        thread,
+                                        level,
+                                        text: None,
+                                        throwable: None,
+                                    });
+                                },
                                 _ => {
                                     if cfg!(debug_assertions) {
                                         panic!("Unknown tag {:?} for stack {:?}", e.name(), &stack);
                                     }
                                     stack.push(ParseState::Unknown);
-                                }
+                                },
                             }
                         },
-                        Some(ParseState::Event { .. }) => {
-                            match e.name().as_ref() {
-                                b"log4j:Message" => {
-                                    stack.push(ParseState::Message { content: None });
-                                },
-                                b"log4j:Throwable" => {
-                                    stack.push(ParseState::Throwable { content: None });
-                                },
-                                _ => {
-                                    if cfg!(debug_assertions) {
-                                        panic!("Unknown tag {:?} for stack {:?}", e.name(), &stack);
-                                    }
-                                    stack.push(ParseState::Unknown);
+                        Some(ParseState::Event { .. }) => match e.name().as_ref() {
+                            b"log4j:Message" => {
+                                stack.push(ParseState::Message { content: None });
+                            },
+                            b"log4j:Throwable" => {
+                                stack.push(ParseState::Throwable { content: None });
+                            },
+                            _ => {
+                                if cfg!(debug_assertions) {
+                                    panic!("Unknown tag {:?} for stack {:?}", e.name(), &stack);
                                 }
-                            }
+                                stack.push(ParseState::Unknown);
+                            },
                         },
                         Some(ParseState::Unknown) => {
                             stack.push(ParseState::Unknown);
-                        }
-                        _ => {}
+                        },
+                        _ => {},
                     }
                 },
                 Ok(quick_xml::events::Event::End(_)) => {
@@ -169,7 +180,14 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                     };
                     match stack.last_mut() {
                         None => {
-                            if let ParseState::Event { timestamp, thread, level, mut text, mut throwable  } = popped {
+                            if let ParseState::Event {
+                                timestamp,
+                                thread,
+                                level,
+                                mut text,
+                                mut throwable,
+                            } = popped
+                            {
                                 let mut lines = Vec::new();
 
                                 if let Some(text) = text.as_mut() {
@@ -243,7 +261,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                             } else if cfg!(debug_assertions) {
                                 panic!("Don't know how to handle popping {:?} on root", popped);
                             }
-                        }
+                        },
                         Some(ParseState::Event { text, throwable, .. }) => {
                             if let ParseState::Message { content } = popped {
                                 *text = content;
@@ -283,12 +301,12 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                             let message: Arc<str> = String::from_utf8_lossy(&e).into_owned().into();
                             *content = Some(message.clone());
                             last_throwable = Some(message);
-                        }
+                        },
                         last => {
                             if cfg!(debug_assertions) {
                                 panic!("Don't know how to handle cdata on {:?}", last);
                             }
-                        }
+                        },
                     }
                 },
                 Ok(quick_xml::events::Event::Text(e)) => {
@@ -315,7 +333,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                     if cfg!(debug_assertions) {
                         panic!("Unknown event {:?}", e);
                     }
-                }
+                },
             }
         }
         if read_raw_text {
@@ -368,7 +386,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                             text: Arc::new([replaced.trim_end().into()]),
                         });
                         raw_text.clear();
-                    }
+                    },
                 }
             }
         }

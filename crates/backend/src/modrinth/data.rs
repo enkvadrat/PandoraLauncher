@@ -1,4 +1,7 @@
-use std::{collections::{HashMap, VecDeque}, time::{Duration, Instant}};
+use std::{
+    collections::{HashMap, VecDeque},
+    time::{Duration, Instant},
+};
 
 use bridge::{handle::FrontendHandle, keep_alive::KeepAlive, message::MessageToFrontend};
 use reqwest::StatusCode;
@@ -98,13 +101,13 @@ impl ModrinthData {
 
                 if status == StatusCode::OK {
                     let result = match request_copy_ref {
-                        ModrinthRequest::Search(_) => {
-                            serde_json::from_slice(&bytes).map(ModrinthResult::Search)
-                        },
+                        ModrinthRequest::Search(_) => serde_json::from_slice(&bytes).map(ModrinthResult::Search),
                         ModrinthRequest::ProjectVersions(request) => {
-                            let mut versions: Result<ModrinthProjectVersionsResult, serde_json::Error> = serde_json::from_slice(&bytes);
+                            let mut versions: Result<ModrinthProjectVersionsResult, serde_json::Error> =
+                                serde_json::from_slice(&bytes);
                             if let Ok(versions) = &mut versions
-                                && versions.0.iter().any(|v| v.project_id != request.project_id) {
+                                && versions.0.iter().any(|v| v.project_id != request.project_id)
+                            {
                                 // Potential slug impersonation exploit, remove versions that don't match
                                 versions.0 = versions.0.iter().filter(|v| v.project_id == request.project_id).cloned().collect();
                             }

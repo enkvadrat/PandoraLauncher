@@ -1,10 +1,24 @@
 use std::sync::Arc;
 
 use auth::{credentials::AccountCredentials, secret::PlatformSecretStorage};
-use bridge::{instance::InstanceStatus, message::{MessageToBackend, MessageToFrontend}, modal_action::ProgressTracker};
+use bridge::{
+    instance::InstanceStatus,
+    message::{MessageToBackend, MessageToFrontend},
+    modal_action::ProgressTracker,
+};
 use schema::version::{LaunchArgument, LaunchArgumentValue};
 
-use crate::{account::{BackendAccount, MinecraftLoginInfo}, instance::InstanceInfo, launch::{ArgumentExpansionKey, LaunchError}, log_reader, metadata::manager::{AssetsIndexMetadata, MinecraftVersionManifestMetadata, MinecraftVersionMetadata, MojangJavaRuntimeComponentMetadata, MojangJavaRuntimesMetadata}, BackendState, LoginError, WatchTarget};
+use crate::{
+    BackendState, LoginError, WatchTarget,
+    account::{BackendAccount, MinecraftLoginInfo},
+    instance::InstanceInfo,
+    launch::{ArgumentExpansionKey, LaunchError},
+    log_reader,
+    metadata::manager::{
+        AssetsIndexMetadata, MinecraftVersionManifestMetadata, MinecraftVersionMetadata,
+        MojangJavaRuntimeComponentMetadata, MojangJavaRuntimesMetadata,
+    },
+};
 
 impl BackendState {
     pub async fn handle_message(&mut self, message: MessageToBackend) {
@@ -32,9 +46,7 @@ impl BackendState {
                         instance.watching_saves_dir = true;
                         let saves = instance.saves_path.clone();
                         if self.watcher.watch(&saves, notify::RecursiveMode::NonRecursive).is_ok() {
-                            self.watching.insert(saves.clone(), WatchTarget::InstanceSavesDir {
-                                id: instance.id,
-                            });
+                            self.watching.insert(saves.clone(), WatchTarget::InstanceSavesDir { id: instance.id });
                         }
                     }
                 }
@@ -55,9 +67,7 @@ impl BackendState {
                         instance.watching_server_dat = true;
                         let server_dat = instance.server_dat_path.clone();
                         if self.watcher.watch(&server_dat, notify::RecursiveMode::NonRecursive).is_ok() {
-                            self.watching.insert(server_dat.clone(), WatchTarget::ServersDat {
-                                id: instance.id,
-                            });
+                            self.watching.insert(server_dat.clone(), WatchTarget::ServersDat { id: instance.id });
                         }
                     }
                 }
@@ -78,9 +88,7 @@ impl BackendState {
                         instance.watching_mods_dir = true;
                         let mods_path = instance.mods_path.clone();
                         if self.watcher.watch(&mods_path, notify::RecursiveMode::NonRecursive).is_ok() {
-                            self.watching.insert(mods_path.clone(), WatchTarget::InstanceModsDir {
-                                id: instance.id,
-                            });
+                            self.watching.insert(mods_path.clone(), WatchTarget::InstanceModsDir { id: instance.id });
                         }
                     }
                 }
@@ -115,24 +123,29 @@ impl BackendState {
             },
             MessageToBackend::KillInstance { id } => {
                 if let Some(instance) = self.instances.get_mut(id.index)
-                    && instance.id == id {
-                        if let Some(mut child) = instance.child.take() {
-                            let result = child.kill();
-                            if result.is_err() {
-                                self.send.send_error("Failed to kill instance").await;
-                                eprintln!("Failed to kill instance: {:?}", result.unwrap_err());
-                            }
-
-                            self.send.send(instance.create_modify_message()).await;
-                        } else {
-                            self.send.send_error("Can't kill instance, instance wasn't running").await;
+                    && instance.id == id
+                {
+                    if let Some(mut child) = instance.child.take() {
+                        let result = child.kill();
+                        if result.is_err() {
+                            self.send.send_error("Failed to kill instance").await;
+                            eprintln!("Failed to kill instance: {:?}", result.unwrap_err());
                         }
-                        return;
+
+                        self.send.send(instance.create_modify_message()).await;
+                    } else {
+                        self.send.send_error("Can't kill instance, instance wasn't running").await;
                     }
+                    return;
+                }
 
                 self.send.send_error("Can't kill instance, unknown id").await;
-            }
-            MessageToBackend::StartInstance { id, quick_play, modal_action } => {
+            },
+            MessageToBackend::StartInstance {
+                id,
+                quick_play,
+                modal_action,
+            } => {
                 let secret_storage = self.secret_storage.get_or_init(PlatformSecretStorage::new).await;
 
                 let mut credentials = if let Some(selected_account) = self.account_info.selected_account {
@@ -172,7 +185,9 @@ impl BackendState {
                     },
                 };
 
-                if let Some(selected_account) = self.account_info.selected_account && profile.id != selected_account {
+                if let Some(selected_account) = self.account_info.selected_account
+                    && profile.id != selected_account
+                {
                     let _ = secret_storage.delete_credentials(selected_account).await;
                 }
 
@@ -267,38 +282,44 @@ impl BackendState {
                 modal_action.set_finished();
             },
             MessageToBackend::SetModEnabled { id, mod_id, enabled } => {
-                if let Some(instance) = self.instances.get_mut(id.index) && instance.id == id
-                    && let Some(instance_mod) = instance.try_get_mod(mod_id) {
-                        let Some(file_name) = instance_mod.path.file_name() else {
-                            return;
-                        };
+                if let Some(instance) = self.instances.get_mut(id.index)
+                    && instance.id == id
+                    && let Some(instance_mod) = instance.try_get_mod(mod_id)
+                {
+                    let Some(file_name) = instance_mod.path.file_name() else {
+                        return;
+                    };
 
-                        if instance_mod.enabled == enabled {
-                            return;
-                        }
-
-                        let new_path = if instance_mod.enabled {
-                            let mut file_name = file_name.to_owned();
-                            file_name.push(".disabled");
-                            instance_mod.path.with_file_name(file_name)
-                        } else {
-                            let file_name = file_name.to_str().unwrap();
-
-                            assert!(file_name.ends_with(".disabled"));
-
-                            let without_disabled = &file_name[..file_name.len()-".disabled".len()];
-
-                            instance_mod.path.with_file_name(without_disabled)
-                        };
-
-                        self.reload_mods_immediately.insert(id);
-                        let _ = std::fs::rename(&instance_mod.path, new_path);
+                    if instance_mod.enabled == enabled {
+                        return;
                     }
+
+                    let new_path = if instance_mod.enabled {
+                        let mut file_name = file_name.to_owned();
+                        file_name.push(".disabled");
+                        instance_mod.path.with_file_name(file_name)
+                    } else {
+                        let file_name = file_name.to_str().unwrap();
+
+                        assert!(file_name.ends_with(".disabled"));
+
+                        let without_disabled = &file_name[..file_name.len() - ".disabled".len()];
+
+                        instance_mod.path.with_file_name(without_disabled)
+                    };
+
+                    self.reload_mods_immediately.insert(id);
+                    let _ = std::fs::rename(&instance_mod.path, new_path);
+                }
             },
             MessageToBackend::RequestModrinth { request } => {
                 self.modrinth_data.frontend_request(request).await;
             },
-            MessageToBackend::UpdateAccountHeadPng { uuid, head_png, head_png_32x } => {
+            MessageToBackend::UpdateAccountHeadPng {
+                uuid,
+                head_png,
+                head_png_32x,
+            } => {
                 if let Some(account) = self.account_info.accounts.get_mut(&uuid) {
                     let head_png = Some(head_png);
                     if account.head != head_png {
@@ -316,12 +337,14 @@ impl BackendState {
                 self.install_content(content, modal_action).await;
             },
             MessageToBackend::DeleteMod { id, mod_id } => {
-                if let Some(instance) = self.instances.get_mut(id.index) && instance.id == id
-                    && let Some(instance_mod) = instance.try_get_mod(mod_id) {
-                        self.reload_mods_immediately.insert(id);
-                        let _ = std::fs::remove_file(&instance_mod.path);
-                    }
-            }
+                if let Some(instance) = self.instances.get_mut(id.index)
+                    && instance.id == id
+                    && let Some(instance_mod) = instance.try_get_mod(mod_id)
+                {
+                    self.reload_mods_immediately.insert(id);
+                    let _ = std::fs::remove_file(&instance_mod.path);
+                }
+            },
         }
     }
 

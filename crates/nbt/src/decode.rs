@@ -1,8 +1,8 @@
 use std::borrow::Cow;
 
 use super::*;
-use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 use anyhow::bail;
+use byteorder::{BigEndian, ByteOrder, ReadBytesExt};
 
 const DECODE_CAPACITY: usize = 2_097_152;
 
@@ -47,11 +47,14 @@ pub fn read_named(bytes: &mut &[u8]) -> anyhow::Result<NBT> {
 }
 
 #[inline]
-fn read_node(bytes: &mut &[u8], nodes: &mut Slab<NBTNode>, type_id: u8, depth: usize, size: &mut usize) -> anyhow::Result<usize> {
-    debug_assert!(
-        type_id != TAG_END_ID.0,
-        "read_node must not be called with TAG_END"
-    );
+fn read_node(
+    bytes: &mut &[u8],
+    nodes: &mut Slab<NBTNode>,
+    type_id: u8,
+    depth: usize,
+    size: &mut usize,
+) -> anyhow::Result<usize> {
+    debug_assert!(type_id != TAG_END_ID.0, "read_node must not be called with TAG_END");
 
     let node = match TagType(type_id) {
         TAG_BYTE_ID => {
@@ -86,8 +89,11 @@ fn read_node(bytes: &mut &[u8], nodes: &mut Slab<NBTNode>, type_id: u8, depth: u
             }
 
             let (type_id, children) = read_list(bytes, nodes, depth + 1, size)?;
-            NBTNode::List { type_id: TagType(type_id), children }
-        }
+            NBTNode::List {
+                type_id: TagType(type_id),
+                children,
+            }
+        },
         TAG_COMPOUND_ID => {
             if depth > 512 {
                 bail!("tried to read NBT tag with too high complexity, depth > 512")
@@ -103,7 +109,12 @@ fn read_node(bytes: &mut &[u8], nodes: &mut Slab<NBTNode>, type_id: u8, depth: u
     Ok(idx)
 }
 
-fn read_compound(bytes: &mut &[u8], nodes: &mut Slab<NBTNode>, depth: usize, size: &mut usize) -> anyhow::Result<NBTCompound> {
+fn read_compound(
+    bytes: &mut &[u8],
+    nodes: &mut Slab<NBTNode>,
+    depth: usize,
+    size: &mut usize,
+) -> anyhow::Result<NBTCompound> {
     let mut children = NBTCompound(Vec::new());
 
     loop {
@@ -120,7 +131,7 @@ fn read_compound(bytes: &mut &[u8], nodes: &mut Slab<NBTNode>, depth: usize, siz
                 Ok(_) => bail!("read_compound: duplicate key"),
                 Err(index) => {
                     children.0.insert(index, (name.into(), node));
-                }
+                },
             }
         }
     }
@@ -152,7 +163,11 @@ fn read_byte_array(bytes: &mut &[u8], size: &mut usize) -> anyhow::Result<Vec<i8
 fn read_string<'a>(bytes: &mut &'a [u8], size: &mut usize) -> anyhow::Result<Cow<'a, str>> {
     let length: u16 = bytes.read_u16::<BigEndian>()?;
     if bytes.len() < length as _ {
-        bail!("read_string: not enough bytes ({} remaining) to read string of length {}", bytes.len(), length);
+        bail!(
+            "read_string: not enough bytes ({} remaining) to read string of length {}",
+            bytes.len(),
+            length
+        );
     }
     let length = length as usize;
 
@@ -167,7 +182,12 @@ fn read_string<'a>(bytes: &mut &'a [u8], size: &mut usize) -> anyhow::Result<Cow
     Ok(cesu8::from_java_cesu8(str_bytes)?)
 }
 
-fn read_list(bytes: &mut &[u8], nodes: &mut Slab<NBTNode>, depth: usize, size: &mut usize) -> anyhow::Result<(u8, Vec<usize>)> {
+fn read_list(
+    bytes: &mut &[u8],
+    nodes: &mut Slab<NBTNode>,
+    depth: usize,
+    size: &mut usize,
+) -> anyhow::Result<(u8, Vec<usize>)> {
     let type_id: u8 = bytes.read_u8()?;
 
     let length: i32 = bytes.read_i32::<BigEndian>()?;
@@ -211,7 +231,7 @@ fn read_int_array(bytes: &mut &[u8], size: &mut usize) -> anyhow::Result<Vec<i32
         bail!("read_int_array: nbt too large, capacity reached")
     }
 
-    let (arr_bytes, rest_bytes) = bytes.split_at(length*4);
+    let (arr_bytes, rest_bytes) = bytes.split_at(length * 4);
     *bytes = rest_bytes;
 
     let mut values = vec![0; length];
@@ -235,7 +255,7 @@ fn read_long_array(bytes: &mut &[u8], size: &mut usize) -> anyhow::Result<Vec<i6
         bail!("read_long_array: nbt too large, capacity reached")
     }
 
-    let (arr_bytes, rest_bytes) = bytes.split_at(length*8);
+    let (arr_bytes, rest_bytes) = bytes.split_at(length * 8);
     *bytes = rest_bytes;
 
     let mut values = vec![0; length];

@@ -1,9 +1,21 @@
-use std::sync::{atomic::{AtomicUsize, Ordering}, Arc};
+use std::sync::{
+    Arc,
+    atomic::{AtomicUsize, Ordering},
+};
 
-use bridge::{handle::BackendHandle, instance::{InstanceID, InstanceModSummary}, message::{AtomicBridgeDataLoadState, MessageToBackend}};
+use bridge::{
+    handle::BackendHandle,
+    instance::{InstanceID, InstanceModSummary},
+    message::{AtomicBridgeDataLoadState, MessageToBackend},
+};
 use gpui::{prelude::*, *};
 use gpui_component::{
-    button::{Button, ButtonVariants}, h_flex, list::{ListDelegate, ListItem, ListState}, switch::Switch, v_flex, ActiveTheme as _, Icon, IconName, IndexPath, Sizable
+    ActiveTheme as _, Icon, IconName, IndexPath, Sizable,
+    button::{Button, ButtonVariants},
+    h_flex,
+    list::{ListDelegate, ListItem, ListState},
+    switch::Switch,
+    v_flex,
 };
 
 use crate::{entity::instance::InstanceEntry, png_render_cache};
@@ -16,7 +28,12 @@ pub struct InstanceModsSubpage {
 }
 
 impl InstanceModsSubpage {
-    pub fn new(instance: &Entity<InstanceEntry>, backend_handle: BackendHandle, window: &mut gpui::Window, cx: &mut gpui::Context<Self>) -> Self {
+    pub fn new(
+        instance: &Entity<InstanceEntry>,
+        backend_handle: BackendHandle,
+        window: &mut gpui::Window,
+        cx: &mut gpui::Context<Self>,
+    ) -> Self {
         let instance = instance.read(cx);
         let instance_id = instance.id;
 
@@ -27,7 +44,7 @@ impl InstanceModsSubpage {
             backend_handle: backend_handle.clone(),
             mods: instance.mods.read(cx).to_vec(),
             searched: instance.mods.read(cx).to_vec(),
-            confirming_delete: Arc::new(AtomicUsize::new(0))
+            confirming_delete: Arc::new(AtomicUsize::new(0)),
         };
 
         let mods = instance.mods.clone();
@@ -72,12 +89,14 @@ impl Render for InstanceModsSubpage {
             .child(Button::new("addmr").label("Add from Modrinth").success().compact().small())
             .child(Button::new("addfile").label("Add from file").success().compact().small());
 
-        v_flex()
-            .p_4()
-            .size_full()
-            .child(header)
-            .child(div().size_full().border_1().rounded(theme.radius).border_color(theme.border)
-                .child(self.mod_list.clone()))
+        v_flex().p_4().size_full().child(header).child(
+            div()
+                .size_full()
+                .border_1()
+                .rounded(theme.radius)
+                .border_color(theme.border)
+                .child(self.mod_list.clone()),
+        )
     }
 }
 
@@ -86,7 +105,7 @@ pub struct ModsListDelegate {
     backend_handle: BackendHandle,
     mods: Vec<InstanceModSummary>,
     searched: Vec<InstanceModSummary>,
-    confirming_delete: Arc<AtomicUsize>
+    confirming_delete: Arc<AtomicUsize>,
 }
 
 impl ListDelegate for ModsListDelegate {
@@ -96,12 +115,7 @@ impl ListDelegate for ModsListDelegate {
         self.searched.len()
     }
 
-    fn render_item(
-        &self,
-        ix: IndexPath,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> Option<Self::Item> {
+    fn render_item(&self, ix: IndexPath, _window: &mut Window, cx: &mut App) -> Option<Self::Item> {
         let summary = self.searched.get(ix.row)?;
 
         let icon = if let Some(png_icon) = summary.mod_summary.png_icon.as_ref() {
@@ -127,20 +141,17 @@ impl ListDelegate for ModsListDelegate {
         let mod_id = summary.id;
         let element_id = summary.filename_hash;
 
-        let delete_button = if self.confirming_delete.load(Ordering::Relaxed) == ix.row+1 {
+        let delete_button = if self.confirming_delete.load(Ordering::Relaxed) == ix.row + 1 {
             Button::new(("delete", element_id)).danger().icon(IconName::Check).on_click({
                 let backend_handle = self.backend_handle.clone();
                 move |_, _, _| {
-                    backend_handle.blocking_send(MessageToBackend::DeleteMod {
-                        id,
-                        mod_id,
-                    });
+                    backend_handle.blocking_send(MessageToBackend::DeleteMod { id, mod_id });
                 }
             })
         } else {
             let trash_icon = Icon::default().path("icons/trash-2.svg");
             let confirming_delete = self.confirming_delete.clone();
-            let delete_ix = ix.row+1;
+            let delete_ix = ix.row + 1;
             Button::new(("delete", element_id)).danger().icon(trash_icon).on_click(move |_, _, _| {
                 confirming_delete.store(delete_ix, Ordering::Release);
             })
@@ -150,42 +161,38 @@ impl ListDelegate for ModsListDelegate {
         // let update_icon = Icon::default().path("icons/arrow-down-to-line.svg");
 
         let backend_handle = self.backend_handle.clone();
-        let item = ListItem::new(("item", element_id))
-            .p_1()
-            .child(h_flex()
+        let item = ListItem::new(("item", element_id)).p_1().child(
+            h_flex()
                 .gap_1()
-                .child(Switch::new(("toggle", element_id)).checked(summary.enabled).on_click(move |checked, _, _| {
-                    backend_handle.blocking_send(MessageToBackend::SetModEnabled {
-                        id,
-                        mod_id,
-                        enabled: *checked
-                    });
-                }).px_2())
+                .child(
+                    Switch::new(("toggle", element_id))
+                        .checked(summary.enabled)
+                        .on_click(move |checked, _, _| {
+                            backend_handle.blocking_send(MessageToBackend::SetModEnabled {
+                                id,
+                                mod_id,
+                                enabled: *checked,
+                            });
+                        })
+                        .px_2(),
+                )
                 .child(icon.size_16().min_w_16().min_h_16().grayscale(!summary.enabled))
                 .when(!summary.enabled, |this| this.line_through())
                 .child(description1)
                 .child(description2)
-                .child(delete_button.absolute().right_4())
-            );
+                .child(delete_button.absolute().right_4()),
+        );
 
         Some(item)
     }
 
-    fn set_selected_index(
-        &mut self,
-        _ix: Option<IndexPath>,
-        _window: &mut Window,
-        _cx: &mut Context<ListState<Self>>,
-    ) {
+    fn set_selected_index(&mut self, _ix: Option<IndexPath>, _window: &mut Window, _cx: &mut Context<ListState<Self>>) {
     }
 
-    fn perform_search(
-        &mut self,
-        query: &str,
-        _window: &mut Window,
-        _cx: &mut Context<ListState<Self>>,
-    ) -> Task<()> {
-        self.searched = self.mods.iter()
+    fn perform_search(&mut self, query: &str, _window: &mut Window, _cx: &mut Context<ListState<Self>>) -> Task<()> {
+        self.searched = self
+            .mods
+            .iter()
             .filter(|m| m.mod_summary.name.contains(query) || m.mod_summary.id.contains(query))
             .cloned()
             .collect();

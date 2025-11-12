@@ -1,10 +1,21 @@
-use bridge::{handle::BackendHandle, instance::{InstanceID, InstanceStatus}, message::MessageToBackend};
+use bridge::{
+    handle::BackendHandle,
+    instance::{InstanceID, InstanceStatus},
+    message::MessageToBackend,
+};
 use gpui::{prelude::*, *};
 use gpui_component::{
-    button::{Button, ButtonVariants}, h_flex, tab::{Tab, TabBar}, Icon, IconName
+    Icon, IconName,
+    button::{Button, ButtonVariants},
+    h_flex,
+    tab::{Tab, TabBar},
 };
 
-use crate::{entity::{instance::InstanceEntry, DataEntities}, pages::instance::{mods_subpage::InstanceModsSubpage, quickplay_subpage::InstanceQuickplaySubpage}, root, ui};
+use crate::{
+    entity::{DataEntities, instance::InstanceEntry},
+    pages::instance::{mods_subpage::InstanceModsSubpage, quickplay_subpage::InstanceQuickplaySubpage},
+    root, ui,
+};
 
 pub struct InstancePage {
     backend_handle: BackendHandle,
@@ -16,7 +27,7 @@ pub struct InstancePage {
 
 enum InstanceSubpageType {
     Quickplay,
-    Mods
+    Mods,
 }
 
 impl InstancePage {
@@ -28,16 +39,16 @@ impl InstancePage {
             page.title = instance.title().into();
         });
 
-        let subpage = InstanceSubpage::Quickplay(cx.new(|cx| {
-            InstanceQuickplaySubpage::new(&instance, data.backend_handle.clone(), window, cx)
-        }));
+        let subpage = InstanceSubpage::Quickplay(
+            cx.new(|cx| InstanceQuickplaySubpage::new(&instance, data.backend_handle.clone(), window, cx)),
+        );
 
         Self {
             backend_handle: data.backend_handle.clone(),
             title: instance.read(cx).title().into(),
             instance,
             subpage,
-            _instance_subscription
+            _instance_subscription,
         }
     }
 
@@ -48,18 +59,19 @@ impl InstancePage {
                     return;
                 }
 
-                self.subpage = InstanceSubpage::Quickplay(cx.new(|cx| {
-                    InstanceQuickplaySubpage::new(&self.instance, self.backend_handle.clone(), window, cx)
-                }));
+                self.subpage =
+                    InstanceSubpage::Quickplay(cx.new(|cx| {
+                        InstanceQuickplaySubpage::new(&self.instance, self.backend_handle.clone(), window, cx)
+                    }));
             },
             InstanceSubpageType::Mods => {
                 if let InstanceSubpage::Mods(_) = self.subpage {
                     return;
                 }
 
-                self.subpage = InstanceSubpage::Mods(cx.new(|cx| {
-                    InstanceModsSubpage::new(&self.instance, self.backend_handle.clone(), window, cx)
-                }));
+                self.subpage = InstanceSubpage::Mods(
+                    cx.new(|cx| InstanceModsSubpage::new(&self.instance, self.backend_handle.clone(), window, cx)),
+                );
             },
         }
     }
@@ -81,52 +93,54 @@ impl Render for InstancePage {
 
         let button = match instance.status {
             InstanceStatus::NotRunning => {
-                Button::new("start_instance")
-                    .success()
-                    .icon(play_icon)
-                    .label("Start Instance")
-                    .on_click(move |_, window, cx| {
+                Button::new("start_instance").success().icon(play_icon).label("Start Instance").on_click(
+                    move |_, window, cx| {
                         root::start_instance(id, name.clone(), None, &backend_handle, window, cx);
-                    })
+                    },
+                )
             },
             InstanceStatus::Launching => {
-                Button::new("launching")
-                    .warning()
-                    .icon(IconName::Loader)
-                    .label("Launching...")
+                Button::new("launching").warning().icon(IconName::Loader).label("Launching...")
             },
-            InstanceStatus::Running => {
-                Button::new("kill_instance")
-                    .danger()
-                    .icon(IconName::Close)
-                    .label("Kill Instance")
-                    .on_click(move |_, _, _| {
-                        backend_handle.blocking_send(MessageToBackend::KillInstance { id });
-                    })
-            },
+            InstanceStatus::Running => Button::new("kill_instance")
+                .danger()
+                .icon(IconName::Close)
+                .label("Kill Instance")
+                .on_click(move |_, _, _| {
+                    backend_handle.blocking_send(MessageToBackend::KillInstance { id });
+                }),
         };
 
         ui::page(cx, h_flex().gap_8().child(self.title.clone()).child(button))
-            .child(TabBar::new("bar").prefix(div().w_4()).selected_index(selected_index).underline().child(Tab::new("Quickplay")).child(Tab::new("Logs")).child(Tab::new("Mods")).child(Tab::new("Resource Packs")).child(Tab::new("Worlds"))
-                .on_click(cx.listener(|page, index, window, cx| {
-                    let page_type = match *index {
-                        0 => InstanceSubpageType::Quickplay,
-                        2 => InstanceSubpageType::Mods,
-                        _ => {
-                            return;
-                        }
-                    };
-                    page.set_subpage(page_type, window, cx);
-                })))
+            .child(
+                TabBar::new("bar")
+                    .prefix(div().w_4())
+                    .selected_index(selected_index)
+                    .underline()
+                    .child(Tab::new("Quickplay"))
+                    .child(Tab::new("Logs"))
+                    .child(Tab::new("Mods"))
+                    .child(Tab::new("Resource Packs"))
+                    .child(Tab::new("Worlds"))
+                    .on_click(cx.listener(|page, index, window, cx| {
+                        let page_type = match *index {
+                            0 => InstanceSubpageType::Quickplay,
+                            2 => InstanceSubpageType::Mods,
+                            _ => {
+                                return;
+                            },
+                        };
+                        page.set_subpage(page_type, window, cx);
+                    })),
+            )
             .child(self.subpage.clone().into_any_element())
-
     }
 }
 
 #[derive(Clone)]
 pub enum InstanceSubpage {
     Quickplay(Entity<InstanceQuickplaySubpage>),
-    Mods(Entity<InstanceModsSubpage>)
+    Mods(Entity<InstanceModsSubpage>),
 }
 
 impl InstanceSubpage {

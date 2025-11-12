@@ -9,7 +9,7 @@ pub enum FrontendModrinthDataState {
     Loaded {
         result: Result<ModrinthResult, ModrinthError>,
         keep_alive: KeepAliveHandle,
-    }
+    },
 }
 
 pub struct FrontendModrinthData {
@@ -39,20 +39,23 @@ impl FrontendModrinthData {
 
             let loading = cx.new(|_| FrontendModrinthDataState::Loading);
             this.backend_handle.blocking_send(MessageToBackend::RequestModrinth {
-                request: request.clone()
+                request: request.clone(),
             });
             this.data.insert(request, loading.clone());
             loading
         })
     }
 
-    pub fn set<C: AppContext>(entity: &Entity<Self>, request: ModrinthRequest, result: Result<ModrinthResult, ModrinthError>, keep_alive: KeepAliveHandle, cx: &mut C) {
+    pub fn set<C: AppContext>(
+        entity: &Entity<Self>,
+        request: ModrinthRequest,
+        result: Result<ModrinthResult, ModrinthError>,
+        keep_alive: KeepAliveHandle,
+        cx: &mut C,
+    ) {
         entity.update(cx, |this, cx| {
             this.data.get(&request).unwrap().update(cx, |value, cx| {
-                *value = FrontendModrinthDataState::Loaded {
-                    result,
-                    keep_alive
-                };
+                *value = FrontendModrinthDataState::Loaded { result, keep_alive };
                 cx.notify();
             });
         });

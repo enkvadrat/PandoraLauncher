@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use bridge::{instance::{InstanceID, InstanceModSummary, InstanceServerSummary, InstanceStatus, InstanceWorldSummary}, message::AtomicBridgeDataLoadState};
+use bridge::{
+    instance::{InstanceID, InstanceModSummary, InstanceServerSummary, InstanceStatus, InstanceWorldSummary},
+    message::AtomicBridgeDataLoadState,
+};
 use gpui::{prelude::*, *};
 use indexmap::IndexMap;
 use schema::loader::Loader;
@@ -10,8 +13,16 @@ pub struct InstanceEntries {
 }
 
 impl InstanceEntries {
-    pub fn add<C: AppContext>(entity: &Entity<Self>, id: InstanceID, name: SharedString, version: SharedString, loader: Loader,
-        worlds_state: Arc<AtomicBridgeDataLoadState>, servers_state: Arc<AtomicBridgeDataLoadState>, mods_state: Arc<AtomicBridgeDataLoadState>, cx: &mut C
+    pub fn add<C: AppContext>(
+        entity: &Entity<Self>,
+        id: InstanceID,
+        name: SharedString,
+        version: SharedString,
+        loader: Loader,
+        worlds_state: Arc<AtomicBridgeDataLoadState>,
+        servers_state: Arc<AtomicBridgeDataLoadState>,
+        mods_state: Arc<AtomicBridgeDataLoadState>,
+        cx: &mut C,
     ) {
         entity.update(cx, |entries, cx| {
             let instance = InstanceEntry {
@@ -29,9 +40,7 @@ impl InstanceEntries {
             };
 
             entries.entries.insert(id, cx.new(|_| instance.clone()));
-            cx.emit(InstanceAddedEvent {
-                instance
-            });
+            cx.emit(InstanceAddedEvent { instance });
         });
     }
 
@@ -43,7 +52,15 @@ impl InstanceEntries {
         });
     }
 
-    pub fn modify<C: AppContext>(entity: &Entity<Self>, id: InstanceID, name: SharedString, version: SharedString, loader: Loader, status: InstanceStatus, cx: &mut C) {
+    pub fn modify<C: AppContext>(
+        entity: &Entity<Self>,
+        id: InstanceID,
+        name: SharedString,
+        version: SharedString,
+        loader: Loader,
+        status: InstanceStatus,
+        cx: &mut C,
+    ) {
         entity.update(cx, |entries, cx| {
             if let Some(instance) = entries.entries.get_mut(&id) {
                 let cloned = instance.update(cx, |instance, cx| {
@@ -56,49 +73,57 @@ impl InstanceEntries {
                     instance.clone()
                 });
 
-                cx.emit(InstanceModifiedEvent {
-                    instance: cloned
+                cx.emit(InstanceModifiedEvent { instance: cloned });
+            }
+        });
+    }
+
+    pub fn set_worlds<C: AppContext>(
+        entity: &Entity<Self>,
+        id: InstanceID,
+        worlds: Arc<[InstanceWorldSummary]>,
+        cx: &mut C,
+    ) {
+        entity.update(cx, |entries, cx| {
+            if let Some(instance) = entries.entries.get_mut(&id) {
+                instance.update(cx, |instance, cx| {
+                    instance.worlds.update(cx, |existing_worlds, cx| {
+                        *existing_worlds = worlds;
+                        cx.notify();
+                    })
                 });
             }
         });
     }
 
-    pub fn set_worlds<C: AppContext>(entity: &Entity<Self>, id: InstanceID, worlds: Arc<[InstanceWorldSummary]>, cx: &mut C) {
+    pub fn set_servers<C: AppContext>(
+        entity: &Entity<Self>,
+        id: InstanceID,
+        servers: Arc<[InstanceServerSummary]>,
+        cx: &mut C,
+    ) {
         entity.update(cx, |entries, cx| {
-             if let Some(instance) = entries.entries.get_mut(&id) {
-                 instance.update(cx, |instance, cx| {
-                     instance.worlds.update(cx, |existing_worlds, cx| {
-                         *existing_worlds = worlds;
-                         cx.notify();
-                     })
-                 });
-             }
-        });
-    }
-
-    pub fn set_servers<C: AppContext>(entity: &Entity<Self>, id: InstanceID, servers: Arc<[InstanceServerSummary]>, cx: &mut C) {
-        entity.update(cx, |entries, cx| {
-             if let Some(instance) = entries.entries.get_mut(&id) {
-                 instance.update(cx, |instance, cx| {
-                     instance.servers.update(cx, |existing_servers, cx| {
-                         *existing_servers = servers;
-                         cx.notify();
-                     })
-                 });
-             }
+            if let Some(instance) = entries.entries.get_mut(&id) {
+                instance.update(cx, |instance, cx| {
+                    instance.servers.update(cx, |existing_servers, cx| {
+                        *existing_servers = servers;
+                        cx.notify();
+                    })
+                });
+            }
         });
     }
 
     pub fn set_mods<C: AppContext>(entity: &Entity<Self>, id: InstanceID, mods: Arc<[InstanceModSummary]>, cx: &mut C) {
         entity.update(cx, |entries, cx| {
-             if let Some(instance) = entries.entries.get_mut(&id) {
-                 instance.update(cx, |instance, cx| {
-                     instance.mods.update(cx, |existing_mods, cx| {
-                         *existing_mods = mods;
-                         cx.notify();
-                     })
-                 });
-             }
+            if let Some(instance) = entries.entries.get_mut(&id) {
+                instance.update(cx, |instance, cx| {
+                    instance.mods.update(cx, |existing_mods, cx| {
+                        *existing_mods = mods;
+                        cx.notify();
+                    })
+                });
+            }
         });
     }
 
@@ -108,7 +133,7 @@ impl InstanceEntries {
                 entries.entries.move_index(index, entries.entries.len() - 1);
                 let (_, entry) = entries.entries.get_index(entries.entries.len() - 1).unwrap();
                 cx.emit(InstanceMovedToTopEvent {
-                    instance: entry.read(cx).clone()
+                    instance: entry.read(cx).clone(),
                 });
             }
         });
@@ -143,20 +168,19 @@ impl InstanceEntry {
         } else {
             format!("{} ({:?} {})", self.name, self.loader, self.version)
         }
-
     }
 }
 
 impl EventEmitter<InstanceAddedEvent> for InstanceEntries {}
 
 pub struct InstanceAddedEvent {
-    pub instance: InstanceEntry
+    pub instance: InstanceEntry,
 }
 
 impl EventEmitter<InstanceMovedToTopEvent> for InstanceEntries {}
 
 pub struct InstanceMovedToTopEvent {
-    pub instance: InstanceEntry
+    pub instance: InstanceEntry,
 }
 
 impl EventEmitter<InstanceModifiedEvent> for InstanceEntries {}

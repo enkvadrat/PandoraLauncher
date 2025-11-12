@@ -17,7 +17,7 @@ impl MinecraftAccessToken {
 #[derive(Deserialize, Serialize)]
 pub struct TokenWithExpiry {
     pub token: Arc<str>,
-    pub expiry: DateTime<Utc>
+    pub expiry: DateTime<Utc>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -88,7 +88,7 @@ pub struct XboxLiveSecurityTokenResponse {
     pub issue_instant: DateTime<Utc>,
     pub not_after: DateTime<Utc>,
     pub token: Arc<str>,
-    pub display_claims: XboxUserIdentityDisplayClaims
+    pub display_claims: XboxUserIdentityDisplayClaims,
 }
 
 #[derive(Deserialize)]
@@ -114,7 +114,7 @@ pub struct MinecraftLoginWithXboxResponse {
 pub struct MinecraftProfileResponse {
     pub id: Uuid,
     pub name: Arc<str>,
-    pub skins: Vec<MinecraftProfileSkin>
+    pub skins: Vec<MinecraftProfileSkin>,
 }
 
 #[derive(Clone, Deserialize)]
@@ -129,7 +129,7 @@ pub struct MinecraftProfileSkin {
 pub enum SkinState {
     Active,
     #[serde(other)]
-    Inactive
+    Inactive,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Deserialize)]
@@ -138,5 +138,5 @@ pub enum SkinVariant {
     Classic,
     Slim,
     #[serde(other)]
-    Other
+    Other,
 }

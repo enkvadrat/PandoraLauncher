@@ -1,9 +1,13 @@
-use std::{rc::Rc, sync::{atomic::Ordering, Arc, Mutex}, time::{Duration, Instant}};
+use std::{
+    rc::Rc,
+    sync::{Arc, Mutex, atomic::Ordering},
+    time::{Duration, Instant},
+};
 
 use atomic_time::AtomicInstant;
 use gpui::{App, RenderImage};
 use image::Frame;
-use intrusive_collections::{intrusive_adapter, LinkedList, LinkedListLink};
+use intrusive_collections::{LinkedList, LinkedListLink, intrusive_adapter};
 use rustc_hash::FxHashMap;
 
 struct CacheEntry {
@@ -110,9 +114,7 @@ impl PngRenderCache {
         });
 
         let render_image = match result {
-            Ok(render_image) => {
-                Some(Arc::new(render_image))
-            },
+            Ok(render_image) => Some(Arc::new(render_image)),
             Err(error) => {
                 eprintln!("Error loading png: {error:?}");
                 None

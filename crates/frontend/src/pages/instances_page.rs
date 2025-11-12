@@ -1,13 +1,29 @@
-use std::sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, Mutex, RwLock};
+use std::sync::{
+    Arc, Mutex, RwLock,
+    atomic::{AtomicBool, AtomicUsize, Ordering},
+};
 
 use bridge::{handle::BackendHandle, message::MessageToBackend};
 use gpui::{prelude::*, *};
 use gpui_component::{
-    alert::Alert, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, h_flex, input::{Input, InputEvent, InputState}, select::{Select, SelectDelegate, SelectItem, SelectState}, skeleton::Skeleton, table::{Table, TableState}, v_flex, ActiveTheme as _, IconName, IndexPath, Selectable, StyledExt, WindowExt
+    ActiveTheme as _, IconName, IndexPath, Selectable, StyledExt, WindowExt,
+    alert::Alert,
+    button::{Button, ButtonGroup, ButtonVariants},
+    checkbox::Checkbox,
+    h_flex,
+    input::{Input, InputEvent, InputState},
+    select::{Select, SelectDelegate, SelectItem, SelectState},
+    skeleton::Skeleton,
+    table::{Table, TableState},
+    v_flex,
 };
 use schema::{loader::Loader, version_manifest::MinecraftVersionType};
 
-use crate::{component::instance_list::InstanceList, entity::{instance::InstanceEntries, version::VersionEntries, DataEntities}, ui};
+use crate::{
+    component::instance_list::InstanceList,
+    entity::{DataEntities, instance::InstanceEntries, version::VersionEntries},
+    ui,
+};
 
 pub struct InstancesPage {
     instance_table: Entity<TableState<InstanceList>>,
@@ -39,8 +55,7 @@ impl Render for InstancesPage {
             .label("Create Instance")
             .on_click(cx.listener(|this, _, window, cx| {
                 this.show_create_instance_modal(window, cx);
-            })
-        );
+            }));
 
         ui::page(cx, h_flex().gap_8().child("Instances").child(create_instance))
             .child(Table::new(&self.instance_table).bordered(false))
@@ -67,7 +82,7 @@ impl SelectDelegate for VersionList {
     fn position<V>(&self, value: &V) -> Option<IndexPath>
     where
         Self::Item: gpui_component::select::SelectItem<Value = V>,
-        V: PartialEq
+        V: PartialEq,
     {
         for (ix, item) in self.matched_versions.iter().enumerate() {
             if item.value() == value {
@@ -100,17 +115,15 @@ impl InstancesPage {
         let show_snapshots = Arc::new(AtomicBool::new(false));
         let name_invalid = Arc::new(AtomicBool::new(false));
 
-        let instance_names: Arc<[SharedString]> = self.instances.read(cx).entries.iter().map(|(_, v)| v.read(cx).name.clone()).collect();
+        let instance_names: Arc<[SharedString]> =
+            self.instances.read(cx).entries.iter().map(|(_, v)| v.read(cx).name.clone()).collect();
 
-        let minecraft_version_dropdown = cx.new(|cx| {
-            SelectState::new(VersionList::default(), None, window, cx).searchable(true)
-        });
+        let minecraft_version_dropdown =
+            cx.new(|cx| SelectState::new(VersionList::default(), None, window, cx).searchable(true));
 
         let unnamed_instance_name = SharedString::new_static("Unnamed Instance");
 
-        let name_input_state = cx.new(|cx| {
-            InputState::new(window, cx).placeholder(unnamed_instance_name.clone())
-        });
+        let name_input_state = cx.new(|cx| InputState::new(window, cx).placeholder(unnamed_instance_name.clone()));
 
         let _name_input_subscription = {
             let name_invalid = Arc::clone(&name_invalid);
@@ -157,8 +170,12 @@ impl InstancesPage {
                                 let versions: Vec<SharedString> = if show_snapshots.load(Ordering::Relaxed) {
                                     manifest.versions.iter().map(|v| SharedString::from(v.id.as_str())).collect()
                                 } else {
-                                    manifest.versions.iter().filter(|v| !matches!(v.r#type, MinecraftVersionType::Snapshot))
-                                        .map(|v| SharedString::from(v.id.as_str())).collect()
+                                    manifest
+                                        .versions
+                                        .iter()
+                                        .filter(|v| !matches!(v.r#type, MinecraftVersionType::Snapshot))
+                                        .map(|v| SharedString::from(v.id.as_str()))
+                                        .collect()
                                 };
 
                                 (versions, Some(SharedString::from(manifest.latest.release.as_str())))
@@ -177,24 +194,30 @@ impl InstancesPage {
                     let mut to_select = None;
 
                     if let Some(last_selected) = dropdown.selected_value().cloned()
-                        && versions.contains(&last_selected) {
-                            to_select = Some(last_selected);
-                        }
+                        && versions.contains(&last_selected)
+                    {
+                        to_select = Some(last_selected);
+                    }
 
                     if to_select.is_none()
                         && let Some(latest) = latest
-                            && versions.contains(&latest) {
-                                to_select = Some(latest);
-                            }
+                        && versions.contains(&latest)
+                    {
+                        to_select = Some(latest);
+                    }
 
                     if to_select.is_none() {
                         to_select = versions.first().cloned();
                     }
 
-                    dropdown.set_items(VersionList {
-                        versions: versions.clone(),
-                        matched_versions: versions
-                    }, window, cx);
+                    dropdown.set_items(
+                        VersionList {
+                            versions: versions.clone(),
+                            matched_versions: versions,
+                        },
+                        window,
+                        cx,
+                    );
 
                     if let Some(to_select) = to_select {
                         dropdown.set_selected_value(&to_select, window, cx);
@@ -225,7 +248,7 @@ impl InstancesPage {
         }
         let fallback_name_info = Arc::new(Mutex::new(FallbackNameInfo {
             original: unnamed_instance_name.clone(),
-            actual: unnamed_instance_name.clone()
+            actual: unnamed_instance_name.clone(),
         }));
 
         window.open_dialog(cx, move |modal, window, cx| {
@@ -233,7 +256,11 @@ impl InstancesPage {
             let _ = &_name_input_subscription;
 
             name_input_state.update(cx, |input_state, cx| {
-                let selected = minecraft_version_dropdown.read(cx).selected_value().cloned().unwrap_or(unnamed_instance_name.clone());
+                let selected = minecraft_version_dropdown
+                    .read(cx)
+                    .selected_value()
+                    .cloned()
+                    .unwrap_or(unnamed_instance_name.clone());
 
                 let mut fallback_name_info = fallback_name_info.lock().unwrap();
 
@@ -257,20 +284,20 @@ impl InstancesPage {
             });
 
             if let Some(error) = error_loading_versions.read().unwrap().as_ref() {
-                let error_widget = Alert::new(
-                    "error",
-                    format!("{}", error)
-                ).icon(IconName::CircleX).title("Error loading Minecraft versions");
+                let error_widget = Alert::new("error", format!("{}", error))
+                    .icon(IconName::CircleX)
+                    .title("Error loading Minecraft versions");
 
                 let versions = versions.clone();
                 let error_loading_versions = Arc::clone(&error_loading_versions);
-                let reload_button = Button::new("reload-versions")
-                    .primary()
-                    .label("Reload Versions")
-                    .on_click(move |_, _, cx| {
-                        *error_loading_versions.write().unwrap() = None;
-                        versions.read(cx).reload();
-                    });
+                let reload_button =
+                    Button::new("reload-versions")
+                        .primary()
+                        .label("Reload Versions")
+                        .on_click(move |_, _, cx| {
+                            *error_loading_versions.write().unwrap() = None;
+                            versions.read(cx).reload();
+                        });
 
                 return modal
                     .confirm()
@@ -283,7 +310,7 @@ impl InstancesPage {
                 1 => Loader::Fabric,
                 2 => Loader::Forge,
                 3 => Loader::NeoForge,
-                _ => unreachable!()
+                _ => unreachable!(),
             };
 
             #[inline]
@@ -296,7 +323,10 @@ impl InstancesPage {
             let loader_button_group;
 
             if !loaded_versions.load(Ordering::Relaxed) {
-                version_dropdown = Select::new(&minecraft_version_dropdown).w_full().disabled(true).placeholder("Loading Minecraft Versions...");
+                version_dropdown = Select::new(&minecraft_version_dropdown)
+                    .w_full()
+                    .disabled(true)
+                    .placeholder("Loading Minecraft Versions...");
                 show_snapshots_button = Skeleton::new().w_full().min_h_4().max_h_4().rounded_md().into_any_element();
                 loader_button_group = Skeleton::new().w_full().min_h_8().max_h_8().rounded_md().into_any_element();
             } else {
@@ -308,44 +338,46 @@ impl InstancesPage {
 
                 version_dropdown = Select::new(&minecraft_version_dropdown).title_prefix("Minecraft Version: ");
                 show_snapshots_button = Checkbox::new("show_snapshots")
-                                .checked(show_snapshots_value)
-                                .label("Show Snapshots")
-                                .on_click(move |show, window, cx| {
-                                    show_snapshots.store(*show, Ordering::Relaxed);
-                                    (reload_version_dropdown)(window, cx);
-                                }).into_any_element();
+                    .checked(show_snapshots_value)
+                    .label("Show Snapshots")
+                    .on_click(move |show, window, cx| {
+                        show_snapshots.store(*show, Ordering::Relaxed);
+                        (reload_version_dropdown)(window, cx);
+                    })
+                    .into_any_element();
                 loader_button_group = ButtonGroup::new("loader")
-                        .outline()
-                        .h_full()
-                        .child(
-                            Button::new("loader-vanilla")
-                                .label("Vanilla")
-                                .selected(selected_loader_value == Loader::Vanilla),
-                        )
-                        .child(
-                            Button::new("loader-fabric")
-                                .label("Fabric")
-                                .selected(selected_loader_value == Loader::Fabric),
-                        )
-                        // .child(
-                        //     Button::new("loader-forge")
-                        //         .label("Forge")
-                        //         .selected(selected_loader_value == Loader::Forge),
-                        // )
-                        // .child(
-                        //     Button::new("loader-neoforge")
-                        //         .label("NeoForge")
-                        //         .selected(selected_loader_value == Loader::NeoForge),
-                        // )
-                        .on_click(move |selected, _, _| {
-                            match selected.first() {
-                                Some(0) => selected_loader.store(0, Ordering::Relaxed),
-                                Some(1) => selected_loader.store(1, Ordering::Relaxed),
-                                Some(2) => selected_loader.store(2, Ordering::Relaxed),
-                                Some(3) => selected_loader.store(3, Ordering::Relaxed),
-                                _ => {}
-                            };
-                        }).into_any_element();
+                    .outline()
+                    .h_full()
+                    .child(
+                        Button::new("loader-vanilla")
+                            .label("Vanilla")
+                            .selected(selected_loader_value == Loader::Vanilla),
+                    )
+                    .child(
+                        Button::new("loader-fabric")
+                            .label("Fabric")
+                            .selected(selected_loader_value == Loader::Fabric),
+                    )
+                    // .child(
+                    //     Button::new("loader-forge")
+                    //         .label("Forge")
+                    //         .selected(selected_loader_value == Loader::Forge),
+                    // )
+                    // .child(
+                    //     Button::new("loader-neoforge")
+                    //         .label("NeoForge")
+                    //         .selected(selected_loader_value == Loader::NeoForge),
+                    // )
+                    .on_click(move |selected, _, _| {
+                        match selected.first() {
+                            Some(0) => selected_loader.store(0, Ordering::Relaxed),
+                            Some(1) => selected_loader.store(1, Ordering::Relaxed),
+                            Some(2) => selected_loader.store(2, Ordering::Relaxed),
+                            Some(3) => selected_loader.store(3, Ordering::Relaxed),
+                            _ => {},
+                        };
+                    })
+                    .into_any_element();
             };
 
             let minecraft_version_dropdown = minecraft_version_dropdown.clone();
@@ -353,14 +385,13 @@ impl InstancesPage {
             let name_is_invalid = name_invalid.load(Ordering::Relaxed);
 
             let content = v_flex()
-                    .gap_3()
-                    .child(labelled("Name", Input::new(&name_input_state)
-                        .when(name_is_invalid, |this| this.border_color(cx.theme().danger))))
-                    .child(labelled("Version", v_flex().gap_2()
-                        .child(version_dropdown)
-                        .child(show_snapshots_button)
-                    ))
-                    .child(labelled("Modloader", loader_button_group));
+                .gap_3()
+                .child(labelled(
+                    "Name",
+                    Input::new(&name_input_state).when(name_is_invalid, |this| this.border_color(cx.theme().danger)),
+                ))
+                .child(labelled("Version", v_flex().gap_2().child(version_dropdown).child(show_snapshots_button)))
+                .child(labelled("Modloader", loader_button_group));
 
             let text_input_state = name_input_state.clone();
             let backend_handle = backend_handle.clone();
@@ -369,7 +400,10 @@ impl InstancesPage {
             modal
                 .footer(move |ok, cancel, window, cx| {
                     if name_is_invalid {
-                        vec![cancel(window, cx), div().child(ok(window, cx)).opacity(0.5).into_any_element()]
+                        vec![
+                            cancel(window, cx),
+                            div().child(ok(window, cx)).opacity(0.5).into_any_element(),
+                        ]
                     } else {
                         vec![cancel(window, cx), ok(window, cx)]
                     }
@@ -393,7 +427,7 @@ impl InstancesPage {
                     backend_handle.blocking_send(MessageToBackend::CreateInstance {
                         name: name.as_str().into(),
                         version: selected_version.as_str().into(),
-                        loader: selected_loader_value
+                        loader: selected_loader_value,
                     });
 
                     true

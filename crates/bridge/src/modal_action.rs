@@ -1,4 +1,11 @@
-use std::{ops::Deref, sync::{atomic::{AtomicBool, AtomicUsize, Ordering}, Arc, RwLock}, time::Instant};
+use std::{
+    ops::Deref,
+    sync::{
+        Arc, RwLock,
+        atomic::{AtomicBool, AtomicUsize, Ordering},
+    },
+    time::Instant,
+};
 
 use atomic_time::AtomicOptionInstant;
 use tokio_util::sync::CancellationToken;
@@ -99,7 +106,7 @@ impl ProgressTrackers {
 #[derive(Clone, Debug)]
 pub struct ProgressTracker {
     inner: Arc<ProgressTrackerInner>,
-    sender: FrontendHandle
+    sender: FrontendHandle,
 }
 
 struct ProgressTrackerInner {
@@ -130,7 +137,7 @@ impl ProgressTracker {
                 finished_with_error: AtomicBool::new(false),
                 title: RwLock::new(title),
             }),
-            sender
+            sender,
         }
     }
 

@@ -1,9 +1,9 @@
-
 use std::sync::Arc;
 
 use gpui::{prelude::*, *};
 use gpui_component::{
-    select::{SelectDelegate, SelectItem, SelectState}, IndexPath
+    IndexPath,
+    select::{SelectDelegate, SelectItem, SelectState},
 };
 
 use crate::{component::search_helper::SearchHelper, entity::instance::InstanceEntry};
@@ -43,7 +43,7 @@ impl SelectDelegate for InstanceDropdown {
     fn position<V>(&self, value: &V) -> Option<gpui_component::IndexPath>
     where
         Self::Item: gpui_component::select::SelectItem<Value = V>,
-        V: PartialEq
+        V: PartialEq,
     {
         if let Some(searched_iter) = self.search.iter() {
             for (ix, item) in searched_iter.enumerate() {

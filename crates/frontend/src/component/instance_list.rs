@@ -1,11 +1,20 @@
-
 use bridge::handle::BackendHandle;
 use gpui::{prelude::*, *};
 use gpui_component::{
-    button::{Button, ButtonVariants}, h_flex, table::{Column, ColumnSort, TableDelegate, TableState}, Sizable
+    Sizable,
+    button::{Button, ButtonVariants},
+    h_flex,
+    table::{Column, ColumnSort, TableDelegate, TableState},
 };
 
-use crate::{entity::{instance::{InstanceAddedEvent, InstanceEntry, InstanceModifiedEvent, InstanceRemovedEvent}, DataEntities}, root::{self, LauncherRootGlobal}, ui};
+use crate::{
+    entity::{
+        DataEntities,
+        instance::{InstanceAddedEvent, InstanceEntry, InstanceModifiedEvent, InstanceRemovedEvent},
+    },
+    root::{self, LauncherRootGlobal},
+    ui,
+};
 
 pub struct InstanceList {
     columns: Vec<Column>,
@@ -84,12 +93,12 @@ impl TableDelegate for InstanceList {
     }
 
     fn perform_sort(
-            &mut self,
-            col_ix: usize,
-            sort: gpui_component::table::ColumnSort,
-            _window: &mut Window,
-            _cx: &mut Context<TableState<Self>>,
-        ) {
+        &mut self,
+        col_ix: usize,
+        sort: gpui_component::table::ColumnSort,
+        _window: &mut Window,
+        _cx: &mut Context<TableState<Self>>,
+    ) {
         if let Some(col) = self.columns.get_mut(col_ix) {
             match col.key.as_ref() {
                 "name" => self.items.sort_by(|a, b| match sort {
@@ -100,74 +109,49 @@ impl TableDelegate for InstanceList {
                     ColumnSort::Descending => lexical_sort::natural_lexical_cmp(&a.version, &b.version).reverse(),
                     _ => lexical_sort::natural_lexical_cmp(&a.version, &b.version),
                 }),
-                _ => {}
+                _ => {},
             }
         }
     }
 
-    fn render_td(
-        &self,
-        row_ix: usize,
-        col_ix: usize,
-        _window: &mut Window,
-        _cx: &mut App,
-    ) -> impl IntoElement {
+    fn render_td(&self, row_ix: usize, col_ix: usize, _window: &mut Window, _cx: &mut App) -> impl IntoElement {
         let item = &self.items[row_ix];
         if let Some(col) = self.columns.get(col_ix) {
             match col.key.as_ref() {
-                "name" => {
-                    item.name.clone().into_any_element()
-                },
-                "version" => {
-                    item.version.clone().into_any_element()
-                },
+                "name" => item.name.clone().into_any_element(),
+                "version" => item.version.clone().into_any_element(),
                 "controls" => {
                     let backend_handle = self.backend_handle.clone();
                     h_flex()
                         .size_full()
                         .gap_2()
                         .border_r_4()
-                        .child(Button::new("start")
-                            .w(relative(0.5))
-                            .small()
-                            .success()
-                            .label("Start")
-                            .on_click({
-                                let name = item.name.clone();
-                                let id = item.id;
-                                move |_, window, cx| {
-                                    root::start_instance(id, name.clone(), None, &backend_handle, window, cx);
-                                }
-                            })
-                        )
-                        .child(Button::new("view")
-                            .w(relative(0.5))
-                            .small()
-                            .info()
-                            .label("View")
-                            .on_click({
-                                let id = item.id;
-                                move |_, window, cx| {
-                                    cx.update_global::<LauncherRootGlobal, ()>(|global, cx| {
-                                        global.root.update(cx, |launcher_root, cx| {
-                                            launcher_root.ui.update(cx, |ui, cx| {
-                                                ui.switch_page(ui::PageType::InstancePage(id), window, cx);
-                                            });
+                        .child(Button::new("start").w(relative(0.5)).small().success().label("Start").on_click({
+                            let name = item.name.clone();
+                            let id = item.id;
+                            move |_, window, cx| {
+                                root::start_instance(id, name.clone(), None, &backend_handle, window, cx);
+                            }
+                        }))
+                        .child(Button::new("view").w(relative(0.5)).small().info().label("View").on_click({
+                            let id = item.id;
+                            move |_, window, cx| {
+                                cx.update_global::<LauncherRootGlobal, ()>(|global, cx| {
+                                    global.root.update(cx, |launcher_root, cx| {
+                                        launcher_root.ui.update(cx, |ui, cx| {
+                                            ui.switch_page(ui::PageType::InstancePage(id), window, cx);
                                         });
                                     });
-                                }
-                            })
-                        )
+                                });
+                            }
+                        }))
                         .into_any_element()
                 },
-                "loader" => {
-                    item.loader.name().into_any_element()
-                }
-                _ => "Unknown".into_any_element()
+                "loader" => item.loader.name().into_any_element(),
+                _ => "Unknown".into_any_element(),
             }
         } else {
             "Unknown".into_any_element()
         }
-
     }
 }

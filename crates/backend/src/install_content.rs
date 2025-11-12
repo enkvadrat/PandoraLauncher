@@ -1,6 +1,10 @@
 use std::{io::Write, path::PathBuf, sync::Arc};
 
-use bridge::{install::{ContentInstall, ContentInstallFile, ContentType}, message::MessageToFrontend, modal_action::{ModalAction, ProgressTracker}};
+use bridge::{
+    install::{ContentInstall, ContentInstallFile, ContentType},
+    message::MessageToFrontend,
+    modal_action::{ModalAction, ProgressTracker},
+};
 use sha1::{Digest, Sha1};
 use tokio::io::AsyncWriteExt;
 

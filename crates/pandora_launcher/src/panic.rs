@@ -25,12 +25,8 @@ pub fn install_hook(panic_message: Arc<RwLock<Option<String>>>) {
                         payload,
                         PrettyBacktrace(backtrace)
                     )
-                }
-                None => format!(
-                    "Backend panicked\n{}\n{:?}",
-                    payload,
-                    PrettyBacktrace(backtrace)
-                ),
+                },
+                None => format!("Backend panicked\n{}\n{:?}", payload, PrettyBacktrace(backtrace)),
             };
 
             eprintln!("{}", message);

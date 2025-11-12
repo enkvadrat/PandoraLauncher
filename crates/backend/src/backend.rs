@@ -1,34 +1,65 @@
-use std::{collections::{HashMap, HashSet}, io::Cursor, path::{Path, PathBuf}, sync::Arc, time::{Duration, SystemTime}};
+use std::{
+    collections::{HashMap, HashSet},
+    io::Cursor,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
-use auth::{authenticator::{Authenticator, MsaAuthorizationError, XboxAuthenticateError}, credentials::{AccountCredentials, AUTH_STAGE_COUNT}, models::{MinecraftAccessToken, MinecraftProfileResponse, SkinState}, secret::PlatformSecretStorage, serve_redirect::{self, ProcessAuthorizationError}};
-use bridge::{handle::{BackendHandle, FrontendHandle}, instance::InstanceID, message::{MessageToBackend, MessageToFrontend}, modal_action::{ModalAction, ModalActionVisitUrl, ProgressTracker}};
+use auth::{
+    authenticator::{Authenticator, MsaAuthorizationError, XboxAuthenticateError},
+    credentials::{AUTH_STAGE_COUNT, AccountCredentials},
+    models::{MinecraftAccessToken, MinecraftProfileResponse, SkinState},
+    secret::PlatformSecretStorage,
+    serve_redirect::{self, ProcessAuthorizationError},
+};
+use bridge::{
+    handle::{BackendHandle, FrontendHandle},
+    instance::InstanceID,
+    message::{MessageToBackend, MessageToFrontend},
+    modal_action::{ModalAction, ModalActionVisitUrl, ProgressTracker},
+};
 use image::imageops::FilterType;
-use reqwest::{redirect::Policy, StatusCode};
+use reqwest::{StatusCode, redirect::Policy};
 use slab::Slab;
-use tokio::sync::{mpsc::Receiver, OnceCell};
+use tokio::sync::{OnceCell, mpsc::Receiver};
 
-use crate::{account::BackendAccountInfo, directories::LauncherDirectories, instance::Instance, launch::Launcher, metadata::manager::{MetadataManager, MinecraftVersionManifestMetadata}, mod_metadata::ModMetadataManager, modrinth::data::ModrinthData};
+use crate::{
+    account::BackendAccountInfo,
+    directories::LauncherDirectories,
+    instance::Instance,
+    launch::Launcher,
+    metadata::manager::{MetadataManager, MinecraftVersionManifestMetadata},
+    mod_metadata::ModMetadataManager,
+    modrinth::data::ModrinthData,
+};
 
 pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: Receiver<MessageToBackend>) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(1)
-            .enable_all()
-            .build()
-            .expect("Failed to initialize Tokio runtime");
+        .worker_threads(1)
+        .enable_all()
+        .build()
+        .expect("Failed to initialize Tokio runtime");
 
     let http_client = reqwest::ClientBuilder::new()
         // .connect_timeout(Duration::from_secs(5))
         .redirect(Policy::none())
         .use_rustls_tls()
         .user_agent("PandoraLauncher/0.1.0 (https://github.com/Moulberry/PandoraLauncher)")
-        .build().unwrap();
+        .build()
+        .unwrap();
 
     let base_dirs = directories::BaseDirs::new().unwrap();
     let data_dir = base_dirs.data_dir();
     let launcher_dir = data_dir.join("PandoraLauncher");
     let directories = Arc::new(LauncherDirectories::new(launcher_dir));
 
-    let meta = Arc::new(MetadataManager::new(http_client.clone(), runtime.handle().clone(), directories.metadata_dir.clone(), send.clone()));
+    let meta = Arc::new(MetadataManager::new(
+        http_client.clone(),
+        runtime.handle().clone(),
+        directories.metadata_dir.clone(),
+        send.clone(),
+    ));
 
     let (watcher_tx, watcher_rx) = tokio::sync::mpsc::channel::<notify_debouncer_full::DebounceEventResult>(64);
     let watcher = notify_debouncer_full::new_debouncer(Duration::from_millis(100), None, move |event| {
@@ -74,24 +105,12 @@ pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: Receiver<Me
 pub enum WatchTarget {
     InstancesDir,
     InvalidInstanceDir,
-    InstanceDir {
-        id: InstanceID,
-    },
-    InstanceDotMinecraftDir {
-        id: InstanceID
-    },
-    InstanceWorldDir {
-        id: InstanceID,
-    },
-    InstanceSavesDir {
-        id: InstanceID
-    },
-    ServersDat {
-        id: InstanceID
-    },
-    InstanceModsDir {
-        id: InstanceID
-    },
+    InstanceDir { id: InstanceID },
+    InstanceDotMinecraftDir { id: InstanceID },
+    InstanceWorldDir { id: InstanceID },
+    InstanceSavesDir { id: InstanceID },
+    ServersDat { id: InstanceID },
+    InstanceModsDir { id: InstanceID },
 }
 
 pub struct BackendState {
@@ -184,11 +203,12 @@ impl BackendState {
 
     pub async fn remove_instance(&mut self, id: InstanceID) {
         if let Some(instance) = self.instances.get(id.index)
-            && instance.id == id {
-                let instance = self.instances.remove(id.index);
-                self.send.send(MessageToFrontend::InstanceRemoved { id }).await;
-                self.send.send_info(format!("Instance '{}' removed", instance.name)).await;
-            }
+            && instance.id == id
+        {
+            let instance = self.instances.remove(id.index);
+            self.send.send(MessageToFrontend::InstanceRemoved { id }).await;
+            self.send.send_info(format!("Instance '{}' removed", instance.name)).await;
+        }
     }
 
     pub async fn load_instance_from_path(&mut self, path: &Path, mut show_errors: bool, show_success: bool) -> bool {
@@ -213,17 +233,18 @@ impl BackendState {
 
         if let Some(existing) = self.instance_by_path.get(path)
             && let Some(existing_instance) = self.instances.get_mut(existing.index)
-                && existing_instance.id == *existing {
-                    existing_instance.copy_basic_attributes_from(instance);
+            && existing_instance.id == *existing
+        {
+            existing_instance.copy_basic_attributes_from(instance);
 
-                    let _ = self.send.send(existing_instance.create_modify_message()).await;
+            let _ = self.send.send(existing_instance.create_modify_message()).await;
 
-                    if show_success {
-                        self.send.send_info(format!("Instance '{}' updated", existing_instance.name)).await;
-                    }
+            if show_success {
+                self.send.send_info(format!("Instance '{}' updated", existing_instance.name)).await;
+            }
 
-                    return true;
-                }
+            return true;
+        }
 
         let vacant = self.instances.vacant_entry();
         let instance_id = InstanceID {
@@ -292,10 +313,11 @@ impl BackendState {
 
         for (_, instance) in &mut self.instances {
             if let Some(child) = &mut instance.child
-                && !matches!(child.try_wait(), Ok(None)) {
-                    instance.child = None;
-                    self.send.send(instance.create_modify_message()).await;
-                }
+                && !matches!(child.try_wait(), Ok(None))
+            {
+                instance.child = None;
+                self.send.send(instance.create_modify_message()).await;
+            }
         }
     }
 
@@ -334,7 +356,7 @@ impl BackendState {
         &mut self,
         credentials: &mut AccountCredentials,
         login_tracker: &ProgressTracker,
-        modal_action: &ModalAction
+        modal_action: &ModalAction,
     ) -> Result<(MinecraftProfileResponse, MinecraftAccessToken), LoginError> {
         let mut authenticator = Authenticator::new(self.http_client.clone());
 
@@ -358,7 +380,10 @@ impl BackendState {
                 if stage > last_stage {
                     allow_backwards = false;
                 } else if stage < last_stage && !allow_backwards {
-                    eprintln!("Stage {:?} went backwards from {:?} when going backwards isn't allowed. This is most likely a bug with the auth flow!", stage, last_stage);
+                    eprintln!(
+                        "Stage {:?} went backwards from {:?} when going backwards isn't allowed. This is most likely a bug with the auth flow!",
+                        stage, last_stage
+                    );
                     return Err(LoginError::LoginStageErrorBackwards);
                 } else if stage == last_stage {
                     eprintln!("Stage {:?} didn't change. This is most likely a bug with the auth flow!", stage);
@@ -486,9 +511,10 @@ impl BackendState {
     pub async fn write_account_info(&mut self) {
         // Check that accounts_json can be loaded before backing it up
         if let Ok(file) = std::fs::File::open(&self.directories.accounts_json)
-            && serde_json::from_reader::<_, BackendAccountInfo>(file).is_ok() {
-                let _ = std::fs::rename(&self.directories.accounts_json, &self.directories.accounts_json_backup);
-            }
+            && serde_json::from_reader::<_, BackendAccountInfo>(file).is_ok()
+        {
+            let _ = std::fs::rename(&self.directories.accounts_json, &self.directories.accounts_json_backup);
+        }
 
         let Ok(file) = std::fs::File::create(&self.directories.accounts_json) else {
             return;
@@ -542,25 +568,29 @@ impl BackendState {
                 head_png.clone()
             };
 
-            handle.send(MessageToBackend::UpdateAccountHeadPng {
-                uuid,
-                head_png,
-                head_png_32x,
-            }).await;
+            handle
+                .send(MessageToBackend::UpdateAccountHeadPng {
+                    uuid,
+                    head_png,
+                    head_png_32x,
+                })
+                .await;
         });
     }
 }
 
 fn load_accounts_json(directories: &LauncherDirectories) -> BackendAccountInfo {
     if let Ok(file) = std::fs::File::open(&directories.accounts_json)
-        && let Ok(account_info) = serde_json::from_reader(file) {
-            return account_info;
-        }
+        && let Ok(account_info) = serde_json::from_reader(file)
+    {
+        return account_info;
+    }
 
     if let Ok(file) = std::fs::File::open(&directories.accounts_json_backup)
-        && let Ok(account_info) = serde_json::from_reader(file) {
-            return account_info;
-        }
+        && let Ok(account_info) = serde_json::from_reader(file)
+    {
+        return account_info;
+    }
 
     BackendAccountInfo::default()
 }

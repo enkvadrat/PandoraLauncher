@@ -21,21 +21,14 @@ fn write_node<T: Write>(writer: &mut T, nodes: &Slab<NBTNode>, node: &NBTNode) -
         NBTNode::Double(value) => write_double(writer, *value),
         NBTNode::ByteArray(values) => write_byte_array(writer, values),
         NBTNode::String(value) => write_string(writer, value),
-        NBTNode::List {
-            type_id: _,
-            children,
-        } => write_list(writer, children, nodes),
+        NBTNode::List { type_id: _, children } => write_list(writer, children, nodes),
         NBTNode::Compound(value) => write_compound(writer, nodes, value),
         NBTNode::IntArray(values) => write_int_array(writer, values),
         NBTNode::LongArray(values) => write_long_array(writer, values),
     }
 }
 
-fn write_compound<T: Write>(
-    writer: &mut T,
-    nodes: &Slab<NBTNode>,
-    children: &NBTCompound,
-) -> std::fmt::Result {
+fn write_compound<T: Write>(writer: &mut T, nodes: &Slab<NBTNode>, children: &NBTCompound) -> std::fmt::Result {
     writer.write_char('{')?;
 
     let mut first = true;
@@ -132,11 +125,7 @@ fn write_byte_array<T: Write>(writer: &mut T, values: &Vec<i8>) -> std::fmt::Res
     writer.write_char(']')
 }
 
-fn write_list<T: Write>(
-    writer: &mut T,
-    children: &Vec<usize>,
-    nodes: &Slab<NBTNode>,
-) -> std::fmt::Result {
+fn write_list<T: Write>(writer: &mut T, children: &Vec<usize>, nodes: &Slab<NBTNode>) -> std::fmt::Result {
     writer.write_str("[")?;
     let mut first = true;
     for child in children {

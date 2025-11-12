@@ -1,9 +1,25 @@
 use std::{cell::OnceCell, time::Duration};
 
 use chrono::Utc;
-use oauth2::{basic::{BasicErrorResponse, BasicErrorResponseType, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse, BasicTokenResponse}, AuthUrl, AuthorizationCode, Client, ClientId, CsrfToken, EndpointNotSet, EndpointSet, HttpClientError, PkceCodeChallenge, RedirectUrl, RefreshToken, RequestTokenError, Scope, StandardErrorResponse, StandardRevocableToken, TokenResponse, TokenUrl};
+use oauth2::{
+    AuthUrl, AuthorizationCode, Client, ClientId, CsrfToken, EndpointNotSet, EndpointSet, HttpClientError,
+    PkceCodeChallenge, RedirectUrl, RefreshToken, RequestTokenError, Scope, StandardErrorResponse,
+    StandardRevocableToken, TokenResponse, TokenUrl,
+    basic::{
+        BasicErrorResponse, BasicErrorResponseType, BasicRevocationErrorResponse, BasicTokenIntrospectionResponse,
+        BasicTokenResponse,
+    },
+};
 
-use crate::{constants, models::{FinishedAuthorization, MinecraftAccessToken, MinecraftLoginWithXboxRequest, MinecraftLoginWithXboxResponse, MinecraftProfileResponse, MsaTokens, PendingAuthorization, TokenWithExpiry, XboxLiveAuthenticateRequest, XboxLiveAuthenticateRequestProperties, XboxLiveAuthenticateResponse, XboxLiveSecurityTokenRequest, XboxLiveSecurityTokenRequestProperties, XboxLiveSecurityTokenResponse, XstsToken}};
+use crate::{
+    constants,
+    models::{
+        FinishedAuthorization, MinecraftAccessToken, MinecraftLoginWithXboxRequest, MinecraftLoginWithXboxResponse,
+        MinecraftProfileResponse, MsaTokens, PendingAuthorization, TokenWithExpiry, XboxLiveAuthenticateRequest,
+        XboxLiveAuthenticateRequestProperties, XboxLiveAuthenticateResponse, XboxLiveSecurityTokenRequest,
+        XboxLiveSecurityTokenRequestProperties, XboxLiveSecurityTokenResponse, XstsToken,
+    },
+};
 
 type OAuthClient = oauth2::Client<
     BasicErrorResponse,
@@ -15,12 +31,12 @@ type OAuthClient = oauth2::Client<
     EndpointNotSet,
     EndpointNotSet,
     EndpointNotSet,
-    EndpointSet
+    EndpointSet,
 >;
 
 pub struct Authenticator {
     oauth2_client: OnceCell<OAuthClient>,
-    client: reqwest::Client
+    client: reqwest::Client,
 }
 
 // #[derive(thiserror::Error, Debug)]
@@ -52,16 +68,28 @@ impl MsaAuthorizationError {
     }
 }
 
-impl From<RequestTokenError<HttpClientError<reqwest::Error>, StandardErrorResponse<BasicErrorResponseType>>> for MsaAuthorizationError {
-    fn from(value: RequestTokenError<HttpClientError<reqwest::Error>, StandardErrorResponse<BasicErrorResponseType>>) -> Self {
+impl From<RequestTokenError<HttpClientError<reqwest::Error>, StandardErrorResponse<BasicErrorResponseType>>>
+    for MsaAuthorizationError
+{
+    fn from(
+        value: RequestTokenError<HttpClientError<reqwest::Error>, StandardErrorResponse<BasicErrorResponseType>>,
+    ) -> Self {
         match value {
             RequestTokenError::ServerResponse(server_response) => match server_response.error() {
-                BasicErrorResponseType::InvalidClient => Self::ExternalError(Some(BasicErrorResponseType::InvalidClient)),
+                BasicErrorResponseType::InvalidClient => {
+                    Self::ExternalError(Some(BasicErrorResponseType::InvalidClient))
+                },
                 BasicErrorResponseType::InvalidGrant => Self::InvalidGrant,
-                BasicErrorResponseType::InvalidRequest => Self::ExternalError(Some(BasicErrorResponseType::InvalidRequest)),
+                BasicErrorResponseType::InvalidRequest => {
+                    Self::ExternalError(Some(BasicErrorResponseType::InvalidRequest))
+                },
                 BasicErrorResponseType::InvalidScope => Self::ExternalError(Some(BasicErrorResponseType::InvalidScope)),
-                BasicErrorResponseType::UnauthorizedClient => Self::ExternalError(Some(BasicErrorResponseType::UnauthorizedClient)),
-                BasicErrorResponseType::UnsupportedGrantType => Self::ExternalError(Some(BasicErrorResponseType::UnsupportedGrantType)),
+                BasicErrorResponseType::UnauthorizedClient => {
+                    Self::ExternalError(Some(BasicErrorResponseType::UnauthorizedClient))
+                },
+                BasicErrorResponseType::UnsupportedGrantType => {
+                    Self::ExternalError(Some(BasicErrorResponseType::UnsupportedGrantType))
+                },
                 BasicErrorResponseType::Extension(_) => Self::ExternalError(None),
             },
             RequestTokenError::Request(error) => Self::ConnectionError(error),
@@ -98,7 +126,7 @@ impl Authenticator {
     pub fn new(client: reqwest::Client) -> Self {
         Self {
             client,
-            oauth2_client: OnceCell::new()
+            oauth2_client: OnceCell::new(),
         }
     }
 
@@ -115,7 +143,8 @@ impl Authenticator {
     pub fn create_authorization(&mut self) -> PendingAuthorization {
         let (pkce_challenge, pkce_verifier) = PkceCodeChallenge::new_random_sha256();
 
-        let (url, csrf_token) = self.oauth2_client()
+        let (url, csrf_token) = self
+            .oauth2_client()
             .authorize_url(CsrfToken::new_random)
             .add_extra_param("prompt", "select_account")
             .add_scope(Scope::new("XboxLive.signin".to_string()))
@@ -130,12 +159,16 @@ impl Authenticator {
         }
     }
 
-    pub async fn finish_authorization(&mut self, finished: FinishedAuthorization) -> Result<MsaTokens, MsaAuthorizationError> {
-        let token_response = self.oauth2_client()
+    pub async fn finish_authorization(
+        &mut self,
+        finished: FinishedAuthorization,
+    ) -> Result<MsaTokens, MsaAuthorizationError> {
+        let token_response = self
+            .oauth2_client()
             .exchange_code(AuthorizationCode::new(finished.code))
             .set_pkce_verifier(finished.pending.pkce_verifier)
-            .request_async(&self.client).await;
-
+            .request_async(&self.client)
+            .await;
 
         let token_response = token_response?;
 
@@ -151,13 +184,16 @@ impl Authenticator {
     }
 
     pub async fn refresh_msa(&mut self, refresh: &str) -> Result<Option<MsaTokens>, MsaAuthorizationError> {
-        let token_response = self.oauth2_client()
+        let token_response = self
+            .oauth2_client()
             .exchange_refresh_token(&RefreshToken::new(refresh.to_string()))
             // .set_pkce_verifier(finished.pending.pkce_verifier)
-            .request_async(&self.client).await;
+            .request_async(&self.client)
+            .await;
 
-        if let Err(RequestTokenError::ServerResponse(ref err)) = token_response &&
-                let BasicErrorResponseType::InvalidGrant = err.error() {
+        if let Err(RequestTokenError::ServerResponse(ref err)) = token_response
+            && let BasicErrorResponseType::InvalidGrant = err.error()
+        {
             return Ok(None);
         }
 
@@ -185,18 +221,16 @@ impl Authenticator {
             token_type: "JWT",
         };
 
-        let response = self.client
-            .post(constants::XBOX_AUTHENTICATE_URL)
-            .json(&request)
-            .send().await?;
+        let response = self.client.post(constants::XBOX_AUTHENTICATE_URL).json(&request).send().await?;
 
         if response.status() != reqwest::StatusCode::OK {
-            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()))
+            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()));
         }
 
         let bytes = response.bytes().await?;
 
-        let response: XboxLiveAuthenticateResponse = serde_json::from_slice(&bytes).map_err(|_| XboxAuthenticateError::SerializationError)?;
+        let response: XboxLiveAuthenticateResponse =
+            serde_json::from_slice(&bytes).map_err(|_| XboxAuthenticateError::SerializationError)?;
 
         let skew = Utc::now() - response.issue_instant;
         Ok(TokenWithExpiry {
@@ -215,46 +249,52 @@ impl Authenticator {
             token_type: "JWT",
         };
 
-        let response = self.client
-            .post(constants::XSTS_AUTHORIZE_URL)
-            .json(&request)
-            .send().await?;
+        let response = self.client.post(constants::XSTS_AUTHORIZE_URL).json(&request).send().await?;
 
         if response.status() != reqwest::StatusCode::OK {
-            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()))
+            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()));
         }
 
         let bytes = response.bytes().await?;
 
-        let response: XboxLiveSecurityTokenResponse = serde_json::from_slice(&bytes).map_err(|_| XboxAuthenticateError::SerializationError)?;
+        let response: XboxLiveSecurityTokenResponse =
+            serde_json::from_slice(&bytes).map_err(|_| XboxAuthenticateError::SerializationError)?;
 
         let skew = Utc::now() - response.issue_instant;
         Ok(XstsToken {
             token: response.token,
             expiry: response.not_after + skew,
-            userhash: response.display_claims.xui
-                .first().ok_or(XboxAuthenticateError::MissingXui)?
-                .get("uhs").ok_or(XboxAuthenticateError::MissingUhs)?.as_str().into()
+            userhash: response
+                .display_claims
+                .xui
+                .first()
+                .ok_or(XboxAuthenticateError::MissingXui)?
+                .get("uhs")
+                .ok_or(XboxAuthenticateError::MissingUhs)?
+                .as_str()
+                .into(),
         })
     }
 
-    pub async fn authenticate_minecraft(&mut self, xsts: &str, userhash: &str) -> Result<TokenWithExpiry, XboxAuthenticateError> {
+    pub async fn authenticate_minecraft(
+        &mut self,
+        xsts: &str,
+        userhash: &str,
+    ) -> Result<TokenWithExpiry, XboxAuthenticateError> {
         let request = MinecraftLoginWithXboxRequest {
-            identity_token: &format!("XBL3.0 x={};{}", userhash, xsts)
+            identity_token: &format!("XBL3.0 x={};{}", userhash, xsts),
         };
 
-        let response = self.client
-            .post(constants::MINECRAFT_LOGIN_WITH_XBOX_URL)
-            .json(&request)
-            .send().await?;
+        let response = self.client.post(constants::MINECRAFT_LOGIN_WITH_XBOX_URL).json(&request).send().await?;
 
         if response.status() != reqwest::StatusCode::OK {
-            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()))
+            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()));
         }
 
         let bytes = response.bytes().await?;
 
-        let response: MinecraftLoginWithXboxResponse = serde_json::from_slice(&bytes).map_err(|_| XboxAuthenticateError::SerializationError)?;
+        let response: MinecraftLoginWithXboxResponse =
+            serde_json::from_slice(&bytes).map_err(|_| XboxAuthenticateError::SerializationError)?;
 
         Ok(TokenWithExpiry {
             token: response.access_token,
@@ -262,14 +302,19 @@ impl Authenticator {
         })
     }
 
-    pub async fn get_minecraft_profile(&mut self, access_token: &MinecraftAccessToken) -> Result<MinecraftProfileResponse, XboxAuthenticateError> {
-        let response = self.client
+    pub async fn get_minecraft_profile(
+        &mut self,
+        access_token: &MinecraftAccessToken,
+    ) -> Result<MinecraftProfileResponse, XboxAuthenticateError> {
+        let response = self
+            .client
             .get(constants::MINECRAFT_PROFILE_URL)
             .bearer_auth(access_token.secret())
-            .send().await?;
+            .send()
+            .await?;
 
         if response.status() != reqwest::StatusCode::OK {
-            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()))
+            return Err(XboxAuthenticateError::NonOkHttpStatus(response.status()));
         }
 
         let bytes = response.bytes().await?;

@@ -1,4 +1,7 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use bridge::{handle::BackendHandle, message::MessageToBackend};
 use gpui::{AppContext, Entity};
@@ -8,7 +11,7 @@ pub struct VersionEntries {
     pub manifest: Option<Result<Arc<MinecraftVersionManifest>, Arc<str>>>,
     sent_initial_load: AtomicBool,
     pending_reload: AtomicBool,
-    backend_handle: BackendHandle
+    backend_handle: BackendHandle,
 }
 
 impl VersionEntries {
@@ -17,11 +20,15 @@ impl VersionEntries {
             manifest: None,
             sent_initial_load: AtomicBool::new(false),
             pending_reload: AtomicBool::new(false),
-            backend_handle
+            backend_handle,
         }
     }
 
-    pub fn set<C: AppContext>(entity: &Entity<Self>, manifest: Result<Arc<MinecraftVersionManifest>, Arc<str>>, cx: &mut C) {
+    pub fn set<C: AppContext>(
+        entity: &Entity<Self>,
+        manifest: Result<Arc<MinecraftVersionManifest>, Arc<str>>,
+        cx: &mut C,
+    ) {
         entity.update(cx, |entries, cx| {
             entries.pending_reload.store(false, Ordering::Relaxed);
             entries.manifest = Some(manifest);
@@ -31,9 +38,7 @@ impl VersionEntries {
 
     pub fn load_if_missing(&self) {
         if !self.sent_initial_load.swap(true, Ordering::Relaxed) {
-            self.backend_handle.blocking_send(MessageToBackend::LoadVersionManifest {
-                reload: false
-            });
+            self.backend_handle.blocking_send(MessageToBackend::LoadVersionManifest { reload: false });
         }
     }
 
@@ -41,9 +46,7 @@ impl VersionEntries {
         if !self.pending_reload.swap(true, Ordering::Relaxed) {
             self.sent_initial_load.store(true, Ordering::Relaxed);
 
-            self.backend_handle.blocking_send(MessageToBackend::LoadVersionManifest {
-                reload: true
-            });
+            self.backend_handle.blocking_send(MessageToBackend::LoadVersionManifest { reload: true });
         }
     }
 }

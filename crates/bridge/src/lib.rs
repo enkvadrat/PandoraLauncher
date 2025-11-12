@@ -1,8 +1,8 @@
-pub mod handle;
-pub mod instance;
-pub mod message;
-pub mod game_output;
-pub mod modal_action;
-pub mod keep_alive;
 pub mod account;
+pub mod game_output;
+pub mod handle;
 pub mod install;
+pub mod instance;
+pub mod keep_alive;
+pub mod message;
+pub mod modal_action;

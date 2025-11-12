@@ -1,7 +1,5 @@
 use gpui::{prelude::*, *};
-use gpui_component::{
-    h_flex, v_flex, ActiveTheme as _, IconName, StyledExt
-};
+use gpui_component::{ActiveTheme as _, IconName, StyledExt, h_flex, v_flex};
 
 #[derive(IntoElement)]
 pub struct ErrorAlert {
@@ -52,17 +50,11 @@ impl RenderOnce for ErrorAlert {
                     .flex_1()
                     .overflow_hidden()
                     .gap(gap)
-                    .child(
-                        div()
-                            .mt(px(6.0))
-                            .child(IconName::CircleX),
-                    )
+                    .child(div().mt(px(6.0)).child(IconName::CircleX))
                     .child(
                         v_flex()
                             .overflow_hidden()
-                            .child(
-                                div().w_full().text_base().truncate().font_semibold().child(self.title),
-                            )
+                            .child(div().w_full().text_base().truncate().font_semibold().child(self.title))
                             .child(self.message),
                     ),
             )

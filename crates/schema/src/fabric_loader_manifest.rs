@@ -14,5 +14,5 @@ pub struct FabricLoaderVersion {
     pub build: usize,
     pub maven: Ustr,
     pub version: Ustr,
-    pub stable: bool
+    pub stable: bool,
 }

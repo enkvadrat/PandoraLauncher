@@ -8,7 +8,10 @@ pub struct InstanceID {
 
 impl InstanceID {
     pub fn dangling() -> Self {
-        Self { index: usize::MAX, generation: usize::MAX }
+        Self {
+            index: usize::MAX,
+            generation: usize::MAX,
+        }
     }
 }
 
@@ -20,7 +23,10 @@ pub struct InstanceModID {
 
 impl InstanceModID {
     pub fn dangling() -> Self {
-        Self { index: usize::MAX, generation: usize::MAX }
+        Self {
+            index: usize::MAX,
+            generation: usize::MAX,
+        }
     }
 }
 
@@ -28,7 +34,7 @@ impl InstanceModID {
 pub enum InstanceStatus {
     NotRunning,
     Launching,
-    Running
+    Running,
 }
 
 #[derive(Debug, Clone)]

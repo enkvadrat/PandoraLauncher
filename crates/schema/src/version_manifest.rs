@@ -8,7 +8,7 @@ pub const MOJANG_VERSION_MANIFEST_URL: &str = "https://piston-meta.mojang.com/mc
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct MinecraftVersionManifest {
     pub latest: LatestMinecraftVersions,
-    pub versions: Vec<MinecraftVersionLink>
+    pub versions: Vec<MinecraftVersionLink>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -28,7 +28,7 @@ pub struct MinecraftVersionLink {
     pub time: DateTime<Utc>,
     pub release_time: DateTime<Utc>,
     pub sha1: Ustr,
-    pub compliance_level: u32
+    pub compliance_level: u32,
 }
 
 #[derive(Deserialize, Clone, Debug)]

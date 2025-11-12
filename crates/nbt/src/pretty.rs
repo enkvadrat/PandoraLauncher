@@ -8,44 +8,22 @@ pub fn to_pretty_debug<T: Write>(writer: &mut T, nbt: &NBT) -> std::fmt::Result 
 
 pub fn to_pretty_debug_compound<T: Write>(writer: &mut T, compound: &CompoundRef) -> std::fmt::Result {
     let mut indentation = String::new();
-    write_compound(
-        writer,
-        &compound.nbt.nodes,
-        &mut indentation,
-        None,
-        &compound.get_self_node().0,
-    )
+    write_compound(writer, &compound.nbt.nodes, &mut indentation, None, &compound.get_self_node().0)
 }
 
 pub fn to_pretty_debug_compound_mut<T: Write>(writer: &mut T, compound: &CompoundRefMut) -> std::fmt::Result {
     let mut indentation = String::new();
-    write_compound(
-        writer,
-        &compound.nbt.nodes,
-        &mut indentation,
-        None,
-        &compound.get_self_node().0,
-    )
+    write_compound(writer, &compound.nbt.nodes, &mut indentation, None, &compound.get_self_node().0)
 }
 
 pub fn to_pretty_debug_list<T: Write>(writer: &mut T, list: &ListRef) -> std::fmt::Result {
     let mut indentation = String::new();
-    write_list(writer,
-        &list.nbt.nodes,
-        &mut indentation,
-        None,
-        list.get_self_node().1
-    )
+    write_list(writer, &list.nbt.nodes, &mut indentation, None, list.get_self_node().1)
 }
 
 pub fn to_pretty_debug_list_mut<T: Write>(writer: &mut T, list: &ListRefMut) -> std::fmt::Result {
     let mut indentation = String::new();
-    write_list(writer,
-        &list.nbt.nodes,
-        &mut indentation,
-        None,
-        list.get_self_node().1
-    )
+    write_list(writer, &list.nbt.nodes, &mut indentation, None, list.get_self_node().1)
 }
 
 fn write_node<T: Write>(
@@ -64,10 +42,7 @@ fn write_node<T: Write>(
         NBTNode::Double(value) => write_double(writer, indentation, name, *value),
         NBTNode::ByteArray(values) => write_byte_array(writer, indentation, name, values),
         NBTNode::String(value) => write_string(writer, indentation, name, value),
-        NBTNode::List {
-            type_id: _,
-            children,
-        } => write_list(writer, nodes, indentation, name, children),
+        NBTNode::List { type_id: _, children } => write_list(writer, nodes, indentation, name, children),
         NBTNode::Compound(value) => write_compound(writer, nodes, indentation, name, &value.0),
         NBTNode::IntArray(values) => write_int_array(writer, indentation, name, values),
         NBTNode::LongArray(values) => write_long_array(writer, indentation, name, values),

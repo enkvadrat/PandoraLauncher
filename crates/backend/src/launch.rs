@@ -1,14 +1,46 @@
-use std::{borrow::Cow, cmp::Ordering, collections::{HashMap, HashSet}, ffi::{OsStr, OsString}, io::Write, path::{Path, PathBuf}, process::{Child, Stdio}, sync::{atomic::AtomicBool, Arc, OnceLock}};
+use std::{
+    borrow::Cow,
+    cmp::Ordering,
+    collections::{HashMap, HashSet},
+    ffi::{OsStr, OsString},
+    io::Write,
+    path::{Path, PathBuf},
+    process::{Child, Stdio},
+    sync::{Arc, OnceLock, atomic::AtomicBool},
+};
 
-use bridge::{handle::FrontendHandle, message::{MessageToFrontend, QuickPlayLaunch}, modal_action::{ModalAction, ProgressTracker, ProgressTrackers}};
+use bridge::{
+    handle::FrontendHandle,
+    message::{MessageToFrontend, QuickPlayLaunch},
+    modal_action::{ModalAction, ProgressTracker, ProgressTrackers},
+};
 use futures::{FutureExt, TryFutureExt};
 use lzma::LzmaError;
 use regex::Regex;
-use schema::{assets_index::AssetsIndex, fabric_launch::FabricLaunch, java_runtime_component::{JavaRuntimeComponentFile, JavaRuntimeComponentManifest}, loader::Loader, version::{GameLibrary, GameLibraryArtifact, GameLibraryDownloads, GameLibraryExtractOptions, GameLogging, LaunchArgument, LaunchArgumentValue, MinecraftVersion, OsArch, OsName, Rule, RuleAction}};
+use schema::{
+    assets_index::AssetsIndex,
+    fabric_launch::FabricLaunch,
+    java_runtime_component::{JavaRuntimeComponentFile, JavaRuntimeComponentManifest},
+    loader::Loader,
+    version::{
+        GameLibrary, GameLibraryArtifact, GameLibraryDownloads, GameLibraryExtractOptions, GameLogging, LaunchArgument,
+        LaunchArgumentValue, MinecraftVersion, OsArch, OsName, Rule, RuleAction,
+    },
+};
 use sha1::{Digest, Sha1};
 use ustr::Ustr;
 
-use crate::{account::MinecraftLoginInfo, directories::LauncherDirectories, instance::Instance, launch_wrapper, metadata::manager::{AssetsIndexMetadata, FabricLaunchMetadata, FabricLoaderManifestMetadata, MetaLoadError, MetadataManager, MinecraftVersionManifestMetadata, MinecraftVersionMetadata, MojangJavaRuntimeComponentMetadata, MojangJavaRuntimesMetadata}};
+use crate::{
+    account::MinecraftLoginInfo,
+    directories::LauncherDirectories,
+    instance::Instance,
+    launch_wrapper,
+    metadata::manager::{
+        AssetsIndexMetadata, FabricLaunchMetadata, FabricLoaderManifestMetadata, MetaLoadError, MetadataManager,
+        MinecraftVersionManifestMetadata, MinecraftVersionMetadata, MojangJavaRuntimeComponentMetadata,
+        MojangJavaRuntimesMetadata,
+    },
+};
 
 pub struct Launcher {
     meta: Arc<MetadataManager>,
@@ -39,11 +71,19 @@ impl Launcher {
         Self {
             meta,
             directories,
-            sender
-         }
+            sender,
+        }
     }
 
-    pub async fn launch(&self, http_client: &reqwest::Client, instance: &mut Instance, quick_play: Option<QuickPlayLaunch>, login_info: MinecraftLoginInfo, launch_tracker: &ProgressTracker, modal_action: &ModalAction) -> Result<Child, LaunchError> {
+    pub async fn launch(
+        &self,
+        http_client: &reqwest::Client,
+        instance: &mut Instance,
+        quick_play: Option<QuickPlayLaunch>,
+        login_info: MinecraftLoginInfo,
+        launch_tracker: &ProgressTracker,
+        modal_action: &ModalAction,
+    ) -> Result<Child, LaunchError> {
         launch_tracker.set_total(6);
 
         let version_info = tokio::select! {
@@ -62,7 +102,7 @@ impl Launcher {
             return Err(LaunchError::InvalidInstanceName(instance_name));
         }
 
-        let instance_dir =  self.directories.instances_dir.join(instance_name);
+        let instance_dir = self.directories.instances_dir.join(instance_name);
         let game_dir = instance_dir.join(".minecraft");
         let _ = std::fs::create_dir_all(&game_dir);
 
@@ -85,11 +125,16 @@ impl Launcher {
             path: format!("net/minecraft/{}/minecraft-client-{}.jar", instance.version, instance.version).into(),
             sha1: Some(client_download.sha1),
             size: Some(client_download.size),
-            url: client_download.url
+            url: client_download.url,
         });
 
-        let mojang_java_binary_future =
-            self.load_mojang_java_binary(&self.meta, http_client, &version_info, &modal_action.trackers, launch_tracker);
+        let mojang_java_binary_future = self.load_mojang_java_binary(
+            &self.meta,
+            http_client,
+            &version_info,
+            &modal_action.trackers,
+            launch_tracker,
+        );
         let load_assets_future =
             self.load_assets(&self.meta, http_client, &game_dir, &version_info, &modal_action.trackers, launch_tracker);
         let load_libraries_future =
@@ -187,7 +232,11 @@ impl Launcher {
         Ok(child)
     }
 
-    async fn create_launch_version(&self, launch_tracker: &ProgressTracker, instance: &Instance) -> Result<Arc<MinecraftVersion>, LaunchError> {
+    async fn create_launch_version(
+        &self,
+        launch_tracker: &ProgressTracker,
+        instance: &Instance,
+    ) -> Result<Arc<MinecraftVersion>, LaunchError> {
         match instance.loader {
             Loader::Vanilla => {
                 launch_tracker.add_total(1);
@@ -207,7 +256,7 @@ impl Launcher {
             Loader::Fabric => {
                 let versions = self.meta.fetch(&MinecraftVersionManifestMetadata).map_err(LaunchError::from);
 
-                let fabric_loader_versions =  self.meta.fetch(&FabricLoaderManifestMetadata).map_err(LaunchError::from);
+                let fabric_loader_versions = self.meta.fetch(&FabricLoaderManifestMetadata).map_err(LaunchError::from);
 
                 launch_tracker.add_total(4);
                 launch_tracker.notify().await;
@@ -254,10 +303,8 @@ impl Launcher {
                     Ok(value)
                 });
 
-                let (version, fabric_launch): (Arc<MinecraftVersion>, Arc<FabricLaunch>) = futures::future::try_join(
-                    version,
-                    fabric_launch
-                ).await?;
+                let (version, fabric_launch): (Arc<MinecraftVersion>, Arc<FabricLaunch>) =
+                    futures::future::try_join(version, fabric_launch).await?;
 
                 let mut version: MinecraftVersion = (*version).clone();
 
@@ -277,7 +324,7 @@ impl Launcher {
                         name: loader.maven,
                         rules: None,
                         natives: None,
-                        extract: None
+                        extract: None,
                     });
                 }
 
@@ -297,7 +344,7 @@ impl Launcher {
                         name: intermediary.maven,
                         rules: None,
                         natives: None,
-                        extract: None
+                        extract: None,
                     });
                 }
 
@@ -318,7 +365,7 @@ impl Launcher {
                         name: library.name,
                         rules: None,
                         natives: None,
-                        extract: None
+                        extract: None,
                     });
                 }
 
@@ -332,7 +379,14 @@ impl Launcher {
         }
     }
 
-    async fn load_mojang_java_binary(&self, meta: &MetadataManager, http_client: &reqwest::Client, version_info: &MinecraftVersion, progress_trackers: &ProgressTrackers, launch_tracker: &ProgressTracker) -> Result<PathBuf, LoadJavaRuntimeError> {
+    async fn load_mojang_java_binary(
+        &self,
+        meta: &MetadataManager,
+        http_client: &reqwest::Client,
+        version_info: &MinecraftVersion,
+        progress_trackers: &ProgressTrackers,
+        launch_tracker: &ProgressTracker,
+    ) -> Result<PathBuf, LoadJavaRuntimeError> {
         let platform: Ustr = match (std::env::consts::OS, std::env::consts::ARCH) {
             ("linux", "x86_64") => "linux".into(),
             ("linux", "x86") => "linux-i386".into(),
@@ -369,7 +423,10 @@ impl Launcher {
         let runtimes = meta.fetch(&MojangJavaRuntimesMetadata).await?;
 
         let runtime_platform = runtimes.platforms.get(&platform).ok_or(LoadJavaRuntimeError::UnknownPlatform)?;
-        let runtime_components = runtime_platform.components.get(&jre_component).ok_or(LoadJavaRuntimeError::UnknownComponentForPlatform)?;
+        let runtime_components = runtime_platform
+            .components
+            .get(&jre_component)
+            .ok_or(LoadJavaRuntimeError::UnknownComponentForPlatform)?;
         let runtime_component = runtime_components.first().ok_or(LoadJavaRuntimeError::UnknownComponentForPlatform)?;
 
         let runtime = meta.fetch(&MojangJavaRuntimeComponentMetadata {
@@ -399,7 +456,15 @@ impl Launcher {
         result
     }
 
-    async fn load_assets(&self, meta: &MetadataManager, http_client: &reqwest::Client, game_dir: &PathBuf, version_info: &MinecraftVersion, progress_trackers: &ProgressTrackers, launch_tracker: &ProgressTracker) -> Result<String, LoadAssetObjectsError> {
+    async fn load_assets(
+        &self,
+        meta: &MetadataManager,
+        http_client: &reqwest::Client,
+        game_dir: &PathBuf,
+        version_info: &MinecraftVersion,
+        progress_trackers: &ProgressTrackers,
+        launch_tracker: &ProgressTracker,
+    ) -> Result<String, LoadAssetObjectsError> {
         let asset_index = format!("{}", version_info.assets);
 
         let Ok(assets_index) = meta.fetch(&AssetsIndexMetadata {
@@ -436,13 +501,20 @@ impl Launcher {
         Ok(asset_index)
     }
 
-    async fn load_libraries(&self, http_client: &reqwest::Client, artifacts: &[GameLibraryArtifact], progress_trackers: &ProgressTrackers, launch_tracker: &ProgressTracker) -> Result<Vec<(Ustr, PathBuf)>, LoadLibrariesError> {
+    async fn load_libraries(
+        &self,
+        http_client: &reqwest::Client,
+        artifacts: &[GameLibraryArtifact],
+        progress_trackers: &ProgressTrackers,
+        launch_tracker: &ProgressTracker,
+    ) -> Result<Vec<(Ustr, PathBuf)>, LoadLibrariesError> {
         let initial_title = Arc::from("Verifying integrity of game libraries");
         let libraries_tracker = ProgressTracker::new(initial_title, self.sender.clone());
         progress_trackers.push(libraries_tracker.clone());
         libraries_tracker.notify().await;
 
-        let result = do_libraries_load(http_client, artifacts, self.directories.libraries_dir.clone(), &libraries_tracker).await;
+        let result =
+            do_libraries_load(http_client, artifacts, self.directories.libraries_dir.clone(), &libraries_tracker).await;
 
         libraries_tracker.set_finished(result.is_err());
         libraries_tracker.notify().await;
@@ -453,7 +525,11 @@ impl Launcher {
         result
     }
 
-    async fn load_log_configuration(&self, http_client: &reqwest::Client, logging: Option<&GameLogging>) -> Option<OsString> {
+    async fn load_log_configuration(
+        &self,
+        http_client: &reqwest::Client,
+        logging: Option<&GameLogging>,
+    ) -> Option<OsString> {
         if let Some(logging) = logging {
             let id = logging.client.file.id.as_str();
             if !path_is_normal(id) {
@@ -532,7 +608,7 @@ struct MavenCoordinate<'a> {
     specifier: Option<&'a str>,
 }
 
-impl <'a> MavenCoordinate<'a> {
+impl<'a> MavenCoordinate<'a> {
     fn create(maven: &'a str) -> Self {
         let mut split = maven.split(":");
         let group_id = split.next().unwrap();
@@ -652,7 +728,13 @@ pub enum LoadJavaRuntimeError {
     UnableToFindBinary,
 }
 
-async fn do_java_runtime_load(http_client: &reqwest::Client, runtime_component_dir: PathBuf, fresh_install: bool, runtime: Arc<JavaRuntimeComponentManifest>, java_runtime_tracker: &ProgressTracker) -> Result<PathBuf, LoadJavaRuntimeError> {
+async fn do_java_runtime_load(
+    http_client: &reqwest::Client,
+    runtime_component_dir: PathBuf,
+    fresh_install: bool,
+    runtime: Arc<JavaRuntimeComponentManifest>,
+    java_runtime_tracker: &ProgressTracker,
+) -> Result<PathBuf, LoadJavaRuntimeError> {
     let mut links = HashMap::new();
 
     // Limit max concurrent connections to 8 to avoid ratelimiting issues
@@ -797,9 +879,10 @@ async fn do_java_runtime_load(http_client: &reqwest::Client, runtime_component_d
         for (path, target) in links {
             if let Some(parent) = path.parent()
                 && let Ok(absolute_target) = parent.join(target).canonicalize()
-                    && absolute_target.starts_with(&runtime_component_dir) {
-                        let _ = std::os::unix::fs::symlink(absolute_target, path);
-                    }
+                && absolute_target.starts_with(&runtime_component_dir)
+            {
+                let _ = std::os::unix::fs::symlink(absolute_target, path);
+            }
         }
     }
 
@@ -840,7 +923,12 @@ pub enum LoadAssetObjectsError {
     WrongHash,
 }
 
-async fn do_asset_objects_load(http_client: &reqwest::Client, assets_index: Arc<AssetsIndex>, assets_objects_dir: PathBuf, assets_tracker: &ProgressTracker) -> Result<(), LoadAssetObjectsError> {
+async fn do_asset_objects_load(
+    http_client: &reqwest::Client,
+    assets_index: Arc<AssetsIndex>,
+    assets_objects_dir: PathBuf,
+    assets_tracker: &ProgressTracker,
+) -> Result<(), LoadAssetObjectsError> {
     // Limit max concurrent connections to 8 to avoid ratelimiting issues
     let download_semaphore = tokio::sync::Semaphore::new(8);
     let disk_semaphore = tokio::sync::Semaphore::new(32);
@@ -951,7 +1039,12 @@ pub enum LoadLibrariesError {
     IllegalLibraryPath(Ustr),
 }
 
-async fn do_libraries_load(http_client: &reqwest::Client, artifacts: &[GameLibraryArtifact], libraries_dir: PathBuf, libraries_tracker: &ProgressTracker) -> Result<Vec<(Ustr, PathBuf)>, LoadLibrariesError> {
+async fn do_libraries_load(
+    http_client: &reqwest::Client,
+    artifacts: &[GameLibraryArtifact],
+    libraries_dir: PathBuf,
+    libraries_tracker: &ProgressTracker,
+) -> Result<Vec<(Ustr, PathBuf)>, LoadLibrariesError> {
     // Limit max concurrent connections to 8 to avoid ratelimiting issues
     let download_semaphore = tokio::sync::Semaphore::new(8);
     let disk_semaphore = tokio::sync::Semaphore::new(32);
@@ -1111,7 +1204,7 @@ impl ArgumentExpansionKey {
             "quickPlaySingleplayer" => Some(Self::QuickPlaySingleplayer),
             "quickPlayMultiplayer" => Some(Self::QuickPlayMultiplayer),
             "quickPlayRealms" => Some(Self::QuickPlayRealms),
-            _ => None
+            _ => None,
         }
     }
 }
@@ -1127,13 +1220,13 @@ impl LaunchRuleContext {
         &self,
         libraries: &[GameLibrary],
         artifacts: &mut Vec<GameLibraryArtifact>,
-        natives_to_extract: &mut HashMap<Ustr, GameLibraryExtractOptions>
+        natives_to_extract: &mut HashMap<Ustr, GameLibraryExtractOptions>,
     ) {
         let os_name = match std::env::consts::OS {
             "linux" => Some(OsName::Linux),
             "macos" => Some(OsName::Osx),
             "windows" => Some(OsName::Windows),
-            _ => None
+            _ => None,
         };
 
         // Remove duplicate libraries
@@ -1184,11 +1277,12 @@ impl LaunchRuleContext {
                 }
             }
 
-            if let Some(platform_natives) = &library.natives &&
-                    let Some(classifiers) = &library.downloads.classifiers &&
-                    let Some(os_name) = os_name &&
-                    let Some(natives_id) = platform_natives.get(&os_name) &&
-                    let Some(natives) = classifiers.get(natives_id) {
+            if let Some(platform_natives) = &library.natives
+                && let Some(classifiers) = &library.downloads.classifiers
+                && let Some(os_name) = os_name
+                && let Some(natives_id) = platform_natives.get(&os_name)
+                && let Some(natives) = classifiers.get(natives_id)
+            {
                 artifacts.push(natives.clone());
                 if let Some(extract) = &library.extract {
                     natives_to_extract.insert(natives.path, extract.clone());

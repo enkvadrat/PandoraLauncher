@@ -14,13 +14,13 @@ pub enum ContentType {
     Mod,
     Modpack,
     Resourcepack,
-    Shader
+    Shader,
 }
 
 #[derive(Debug, Clone)]
 pub struct ContentInstall {
     pub target: InstallTarget,
-    pub files: Arc<[ContentInstallFile]>
+    pub files: Arc<[ContentInstallFile]>,
 }
 
 #[derive(Debug, Clone)]

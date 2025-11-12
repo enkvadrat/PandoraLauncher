@@ -1,8 +1,23 @@
-use std::{collections::HashSet, hash::{DefaultHasher, Hash, Hasher}, io::Read, path::Path, process::Child, sync::{atomic::{AtomicBool, Ordering}, Arc}};
+use std::{
+    collections::HashSet,
+    hash::{DefaultHasher, Hash, Hasher},
+    io::Read,
+    path::Path,
+    process::Child,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use anyhow::Context;
 use base64::Engine;
-use bridge::{instance::{InstanceID, InstanceModID, InstanceModSummary, InstanceServerSummary, InstanceStatus, InstanceWorldSummary}, message::{AtomicBridgeDataLoadState, BridgeDataLoadState, MessageToFrontend}};
+use bridge::{
+    instance::{
+        InstanceID, InstanceModID, InstanceModSummary, InstanceServerSummary, InstanceStatus, InstanceWorldSummary,
+    },
+    message::{AtomicBridgeDataLoadState, BridgeDataLoadState, MessageToFrontend},
+};
 use schema::loader::Loader;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -57,7 +72,7 @@ pub enum InstanceLoadError {
     #[error("An I/O error occured while trying to read the instance")]
     IoError(#[from] std::io::Error),
     #[error("A serialization error occured while trying to read the instance")]
-    SerdeError(#[from] serde_json::Error)
+    SerdeError(#[from] serde_json::Error),
 }
 
 impl Instance {
@@ -306,9 +321,7 @@ impl Instance {
             }
 
             let result = match load_servers_summary(&server_dat_path) {
-                Ok(summaries) => {
-                    summaries.into()
-                },
+                Ok(summaries) => summaries.into(),
                 Err(err) => {
                     eprintln!("Error loading servers: {:?}", err);
                     Arc::from([])
@@ -323,7 +336,11 @@ impl Instance {
         self.servers_loading = Some((finished2, task));
     }
 
-    pub fn start_load_mods(&mut self, notify_tick: &Arc<tokio::sync::Notify>, mod_metadata_manager: &Arc<ModMetadataManager>) {
+    pub fn start_load_mods(
+        &mut self,
+        notify_tick: &Arc<tokio::sync::Notify>,
+        mod_metadata_manager: &Arc<ModMetadataManager>,
+    ) {
         if self.mods_loading.is_some() {
             return;
         }
@@ -415,7 +432,12 @@ impl Instance {
         self.mods_loading = Some((finished2, task));
     }
 
-    fn load_mods_dirty(&mut self, notify_tick: Arc<tokio::sync::Notify>, mod_metadata_manager: Arc<ModMetadataManager>, last: Arc<[InstanceModSummary]>) {
+    fn load_mods_dirty(
+        &mut self,
+        notify_tick: Arc<tokio::sync::Notify>,
+        mod_metadata_manager: Arc<ModMetadataManager>,
+        last: Arc<[InstanceModSummary]>,
+    ) {
         self.mods_state.store(BridgeDataLoadState::Loading, std::sync::atomic::Ordering::SeqCst);
         self.all_mods_dirty = false;
         let dirty = std::mem::take(&mut self.dirty_mods);
@@ -561,7 +583,7 @@ impl Instance {
             BridgeDataLoadState::Loaded => {
                 self.worlds_state.store(BridgeDataLoadState::LoadedDirty, Ordering::SeqCst);
             },
-            _ => {}
+            _ => {},
         }
     }
 
@@ -579,7 +601,7 @@ impl Instance {
             BridgeDataLoadState::Loaded => {
                 self.servers_state.store(BridgeDataLoadState::LoadedDirty, Ordering::SeqCst);
             },
-            _ => {}
+            _ => {},
         }
     }
 
@@ -604,7 +626,7 @@ impl Instance {
             BridgeDataLoadState::Loaded => {
                 self.mods_state.store(BridgeDataLoadState::LoadedDirty, Ordering::SeqCst);
             },
-            _ => {}
+            _ => {},
         }
     }
 
@@ -635,7 +657,7 @@ impl Instance {
             name: self.name,
             version: self.version,
             loader: self.loader,
-            status
+            status,
         }
     }
 }
@@ -713,19 +735,22 @@ fn load_servers_summary(server_dat_path: &Path) -> anyhow::Result<Vec<InstanceSe
         let server = server.as_compound().unwrap();
 
         if let Some(hidden) = server.find_byte("hidden")
-            && *hidden != 0 {
-                continue;
-            }
+            && *hidden != 0
+        {
+            continue;
+        }
 
         let Some(ip) = server.find_string("ip") else {
             continue;
         };
 
-        let name: Arc<str> = server.find_string("name")
+        let name: Arc<str> = server
+            .find_string("name")
             .map(|v| Arc::from(v.as_str()))
             .unwrap_or_else(|| Arc::from("<unnamed>"));
 
-        let icon = server.find_string("icon")
+        let icon = server
+            .find_string("icon")
             .and_then(|v| base64::engine::general_purpose::STANDARD.decode(v).map(Arc::from).ok());
 
         summaries.push(InstanceServerSummary {

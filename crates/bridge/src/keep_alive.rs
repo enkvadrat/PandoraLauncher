@@ -1,8 +1,11 @@
-use std::sync::{atomic::{AtomicBool, Ordering}, Arc};
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 #[derive(Debug)]
 pub struct KeepAlive {
-    alive: Arc<AtomicBool>
+    alive: Arc<AtomicBool>,
 }
 
 impl Default for KeepAlive {
@@ -14,12 +17,14 @@ impl Default for KeepAlive {
 impl KeepAlive {
     pub fn new() -> Self {
         Self {
-            alive: Arc::new(AtomicBool::new(true))
+            alive: Arc::new(AtomicBool::new(true)),
         }
     }
 
     pub fn create_handle(&self) -> KeepAliveHandle {
-        KeepAliveHandle { alive: Arc::clone(&self.alive) }
+        KeepAliveHandle {
+            alive: Arc::clone(&self.alive),
+        }
     }
 }
 
@@ -31,7 +36,7 @@ impl Drop for KeepAlive {
 
 #[derive(Debug)]
 pub struct KeepAliveHandle {
-    alive: Arc<AtomicBool>
+    alive: Arc<AtomicBool>,
 }
 
 impl KeepAliveHandle {

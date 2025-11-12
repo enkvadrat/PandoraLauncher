@@ -1,4 +1,3 @@
-
 use std::{collections::HashMap, path::PathBuf, sync::Arc};
 
 use chrono::{DateTime, Utc};
@@ -27,7 +26,6 @@ pub struct MinecraftVersion {
     pub release_time: DateTime<Utc>,
     pub time: DateTime<Utc>,
     pub r#type: MinecraftVersionType,
-
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -40,7 +38,7 @@ pub struct LaunchArguments {
 #[derive(Clone, Debug)]
 pub enum LaunchArgument {
     Single(LaunchArgumentValue),
-    Ruled(LaunchArgumentRuled)
+    Ruled(LaunchArgumentRuled),
 }
 
 impl<'de> Deserialize<'de> for LaunchArgument {
@@ -75,7 +73,7 @@ pub enum LaunchArgumentValue {
 pub struct Rule {
     pub action: RuleAction,
     pub features: Option<RuleFeatures>,
-    pub os: Option<RuleOs>
+    pub os: Option<RuleOs>,
 }
 
 #[derive(Deserialize, Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -126,7 +124,6 @@ pub enum OsArch {
     X86,
 }
 
-
 #[derive(Deserialize, Clone, Debug)]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 #[serde(rename_all = "camelCase")]
@@ -136,7 +133,6 @@ pub struct AssetIndexLink {
     pub size: u32,
     pub total_size: u32,
     pub url: Ustr,
-
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -149,7 +145,6 @@ pub struct GameDownloads {
     /// Only present in 16w04a and below
     pub windows_server: Option<VersionDownloadLink>,
 }
-
 
 #[derive(Deserialize, Clone, Debug)]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
@@ -179,7 +174,7 @@ pub struct GameLibrary {
     pub natives: Option<HashMap<OsName, Ustr>>,
 
     /// Options that modify the extraction of natives, only used in 22w17a and below
-    pub extract: Option<GameLibraryExtractOptions>
+    pub extract: Option<GameLibraryExtractOptions>,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -197,7 +192,7 @@ pub struct GameLibraryArtifact {
     pub path: Ustr,
     pub sha1: Option<Ustr>,
     pub size: Option<u32>,
-    pub url: Ustr
+    pub url: Ustr,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -209,7 +204,7 @@ pub struct GameLibraryExtractOptions {
 #[derive(Deserialize, Clone, Debug)]
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct GameLogging {
-    pub client: GameLoggingTarget
+    pub client: GameLoggingTarget,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -217,7 +212,7 @@ pub struct GameLogging {
 pub struct GameLoggingTarget {
     pub argument: Ustr,
     pub file: GameLoggingFile,
-    pub r#type: GameLoggingType
+    pub r#type: GameLoggingType,
 }
 
 #[derive(Deserialize, Clone, Debug)]
@@ -233,5 +228,5 @@ pub struct GameLoggingFile {
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub enum GameLoggingType {
     #[serde(rename = "log4j2-xml")]
-    Log4j2Xml
+    Log4j2Xml,
 }

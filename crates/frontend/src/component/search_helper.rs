@@ -11,15 +11,19 @@ pub struct SearchHelper<T> {
     searched: bool,
 }
 
-impl <T> SearchHelper<T> {
+impl<T> SearchHelper<T> {
     pub fn new(items: Arc<[T]>, key: impl Fn(&T) -> SharedString) -> Self {
-        let lower_keys = items.iter().map(key).map(|key| {
-            if key.chars().any(char::is_uppercase) {
-                key.to_lowercase().into()
-            } else {
-                key.clone()
-            }
-        }).collect();
+        let lower_keys = items
+            .iter()
+            .map(key)
+            .map(|key| {
+                if key.chars().any(char::is_uppercase) {
+                    key.to_lowercase().into()
+                } else {
+                    key.clone()
+                }
+            })
+            .collect();
         Self {
             last_search: SharedString::default(),
             items,
@@ -45,8 +49,12 @@ impl <T> SearchHelper<T> {
 
     pub fn iter(&self) -> Option<impl Iterator<Item = &T>> {
         if self.searched {
-            Some(self.searched_starts_with.iter().chain(self.searched_contains.iter())
-                .map(|i| self.items.get(*i).unwrap()))
+            Some(
+                self.searched_starts_with
+                    .iter()
+                    .chain(self.searched_contains.iter())
+                    .map(|i| self.items.get(*i).unwrap()),
+            )
         } else {
             None
         }
@@ -72,16 +80,15 @@ impl <T> SearchHelper<T> {
         }
 
         if self.searched && query.starts_with(self.last_search.as_str()) {
-            self.searched_contains.retain(|i| {
-                self.lower_keys[*i].contains(query)
-            });
+            self.searched_contains.retain(|i| self.lower_keys[*i].contains(query));
             self.searched_starts_with.retain(|i| {
                 let key = &self.lower_keys[*i];
                 if !key.starts_with(query) {
                     if key.contains(query)
-                        && let Err(insert_at) = self.searched_contains.binary_search(i) {
-                            self.searched_contains.insert(insert_at, *i);
-                        }
+                        && let Err(insert_at) = self.searched_contains.binary_search(i)
+                    {
+                        self.searched_contains.insert(insert_at, *i);
+                    }
                     false
                 } else {
                     true

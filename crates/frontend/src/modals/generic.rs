@@ -2,23 +2,30 @@ use std::sync::Arc;
 
 use bridge::modal_action::ModalAction;
 use gpui::{prelude::*, *};
-use gpui_component::{button::{Button, ButtonVariants}, dialog::DialogButtonProps, v_flex, WindowExt};
+use gpui_component::{
+    WindowExt,
+    button::{Button, ButtonVariants},
+    dialog::DialogButtonProps,
+    v_flex,
+};
 
-use crate::component::{error_alert::ErrorAlert, progress_bar::{ProgressBar, ProgressBarColor}};
+use crate::component::{
+    error_alert::ErrorAlert,
+    progress_bar::{ProgressBar, ProgressBarColor},
+};
 
-pub fn show_modal(window: &mut Window, cx: &mut App, title: SharedString, error_title: SharedString, modal_action: ModalAction) {
+pub fn show_modal(
+    window: &mut Window,
+    cx: &mut App,
+    title: SharedString,
+    error_title: SharedString,
+    modal_action: ModalAction,
+) {
     window.open_dialog(cx, move |modal, window, cx| {
         if let Some(error) = &*modal_action.error.read().unwrap() {
-            let error_widget = ErrorAlert::new(
-                "error",
-                error_title.clone(),
-                error.clone().into()
-            );
+            let error_widget = ErrorAlert::new("error", error_title.clone(), error.clone().into());
 
-            return modal
-                .confirm()
-                .title(title.clone())
-                .child(v_flex().gap_3().child(error_widget));
+            return modal.confirm().title(title.clone()).child(v_flex().gap_3().child(error_widget));
         }
 
         if modal_action.refcnt() <= 1 {
@@ -78,29 +85,24 @@ pub fn show_modal(window: &mut Window, cx: &mut App, title: SharedString, error_
         if let Some(visit_url) = &*modal_action.visit_url.read().unwrap() {
             let message = SharedString::new(Arc::clone(&visit_url.message));
             let url = Arc::clone(&visit_url.url);
-            progress_entries.push(div().p_3().child(Button::new("visit").success().label(message).on_click(move |_, _, cx| {
-                cx.open_url(&url);
-            })));
+            progress_entries.push(div().p_3().child(Button::new("visit").success().label(message).on_click(
+                move |_, _, cx| {
+                    cx.open_url(&url);
+                },
+            )));
         }
 
         let progress = v_flex().gap_2().children(progress_entries);
 
         let request_cancel = modal_action.request_cancel.clone();
-        let modal = modal.title(title.clone())
-            .close_button(false)
-            .child(progress)
-            .opacity(modal_opacity);
+        let modal = modal.title(title.clone()).close_button(false).child(progress).opacity(modal_opacity);
         if is_finishing {
             modal
                 .button_props(DialogButtonProps::default().ok_variant(gpui_component::button::ButtonVariant::Secondary))
-                .footer(|ok, _, window, cx| {
-                    vec![(ok)(window, cx)]
-                })
+                .footer(|ok, _, window, cx| vec![(ok)(window, cx)])
         } else {
             modal
-                .footer(|_, cancel, window, cx| {
-                    vec![(cancel)(window, cx)]
-                })
+                .footer(|_, cancel, window, cx| vec![(cancel)(window, cx)])
                 .overlay_closable(false)
                 .keyboard(false)
                 .on_cancel(move |_, _, _| {
@@ -108,6 +110,5 @@ pub fn show_modal(window: &mut Window, cx: &mut App, title: SharedString, error_
                     false
                 })
         }
-
     });
 }

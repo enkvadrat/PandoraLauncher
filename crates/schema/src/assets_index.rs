@@ -18,5 +18,5 @@ pub struct AssetsIndex {
 #[cfg_attr(debug_assertions, serde(deny_unknown_fields))]
 pub struct AssetObject {
     pub hash: Ustr,
-    pub size: u32
+    pub size: u32,
 }
