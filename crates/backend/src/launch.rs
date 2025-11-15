@@ -87,13 +87,13 @@ impl Launcher {
         let version_info = tokio::select! {
             result = self.create_launch_version(launch_tracker, instance) => result?,
             _ = modal_action.request_cancel.cancelled() => {
-                self.sender.send(MessageToFrontend::CloseModal).await;
+                self.sender.send(MessageToFrontend::CloseModal);
                 return Err(LaunchError::CancelledByUser);
             }
         };
 
         launch_tracker.add_count(1);
-        launch_tracker.notify().await;
+        launch_tracker.notify();
 
         let instance_name = instance.name.as_str();
         if !crate::is_single_component_path(instance_name) {
@@ -149,13 +149,13 @@ impl Launcher {
         let (java_path, assets_index_name, library_paths, log_configuration) = tokio::select! {
             result = joined => result?,
             _ = modal_action.request_cancel.cancelled() => {
-                self.sender.send(MessageToFrontend::CloseModal).await;
+                self.sender.send(MessageToFrontend::CloseModal);
                 return Err(LaunchError::CancelledByUser);
             }
         };
 
         launch_tracker.add_count(1);
-        launch_tracker.notify().await;
+        launch_tracker.notify();
 
         let mut classpath = OsString::new();
         let mut first = true;
@@ -219,7 +219,7 @@ impl Launcher {
         };
 
         if modal_action.has_requested_cancel() {
-            self.sender.send(MessageToFrontend::CloseModal).await;
+            self.sender.send(MessageToFrontend::CloseModal);
             return Err(LaunchError::CancelledByUser);
         }
 
@@ -238,12 +238,12 @@ impl Launcher {
         match instance.loader {
             Loader::Vanilla => {
                 launch_tracker.add_total(1);
-                launch_tracker.notify().await;
+                launch_tracker.notify();
 
                 let versions = self.meta.fetch(&MinecraftVersionManifestMetadataItem).await?;
 
                 launch_tracker.add_count(1);
-                launch_tracker.notify().await;
+                launch_tracker.notify();
 
                 let Some(version) = versions.versions.iter().find(|v| v.id == instance.version) else {
                     return Err(LaunchError::CantFindVersion(instance.version.as_str()));
@@ -257,14 +257,14 @@ impl Launcher {
                 let fabric_loader_versions = self.meta.fetch(&FabricLoaderManifestMetadataItem).map_err(LaunchError::from);
 
                 launch_tracker.add_total(4);
-                launch_tracker.notify().await;
+                launch_tracker.notify();
 
                 let launch_tracker2 = launch_tracker.clone();
                 let meta2 = Arc::clone(&self.meta);
                 let minecraft_version = instance.version;
                 let fabric_launch = fabric_loader_versions.and_then(async move |loader_manifest| {
                     launch_tracker2.add_count(1);
-                    launch_tracker2.notify().await;
+                    launch_tracker2.notify();
 
                     let mut latest_loader_version = loader_manifest.0.iter().find(|v| v.stable);
                     if latest_loader_version.is_none() {
@@ -277,7 +277,7 @@ impl Launcher {
                     }).await?;
 
                     launch_tracker2.add_count(1);
-                    launch_tracker2.notify().await;
+                    launch_tracker2.notify();
 
                     Ok(value)
                 });
@@ -287,7 +287,7 @@ impl Launcher {
                 let instance_version = instance.version;
                 let version = versions.and_then(async move |versions| {
                     launch_tracker3.add_count(1);
-                    launch_tracker3.notify().await;
+                    launch_tracker3.notify();
 
                     let Some(version) = versions.versions.iter().find(|v| v.id == instance_version) else {
                         return Err(LaunchError::CantFindVersion(instance_version.as_str()));
@@ -296,7 +296,7 @@ impl Launcher {
                     let value = meta3.fetch(&MinecraftVersionMetadataItem(version)).await?;
 
                     launch_tracker3.add_count(1);
-                    launch_tracker3.notify().await;
+                    launch_tracker3.notify();
 
                     Ok(value)
                 });
@@ -441,15 +441,15 @@ impl Launcher {
 
         let java_runtime_tracker = ProgressTracker::new(initial_title.into(), self.sender.clone());
         progress_trackers.push(java_runtime_tracker.clone());
-        java_runtime_tracker.notify().await;
+        java_runtime_tracker.notify();
 
         let result = do_java_runtime_load(http_client, runtime_component_dir, fresh_install, runtime, &java_runtime_tracker).await;
 
         java_runtime_tracker.set_finished(result.is_err());
-        java_runtime_tracker.notify().await;
+        java_runtime_tracker.notify();
 
         launch_tracker.add_count(1);
-        launch_tracker.notify().await;
+        launch_tracker.notify();
 
         result
     }
@@ -474,7 +474,7 @@ impl Launcher {
         let initial_title = Arc::from("Verifying integrity of game assets");
         let assets_tracker = ProgressTracker::new(initial_title, self.sender.clone());
         progress_trackers.push(assets_tracker.clone());
-        assets_tracker.notify().await;
+        assets_tracker.notify();
 
         let assets_dir = if assets_index.map_to_resources == Some(true) {
             game_dir.join("resources").into()
@@ -487,10 +487,10 @@ impl Launcher {
         let result = do_asset_objects_load(http_client, assets_index, assets_dir, &assets_tracker).await;
 
         assets_tracker.set_finished(result.is_err());
-        assets_tracker.notify().await;
+        assets_tracker.notify();
 
         launch_tracker.add_count(1);
-        launch_tracker.notify().await;
+        launch_tracker.notify();
 
         result?;
 
@@ -507,16 +507,16 @@ impl Launcher {
         let initial_title = Arc::from("Verifying integrity of game libraries");
         let libraries_tracker = ProgressTracker::new(initial_title, self.sender.clone());
         progress_trackers.push(libraries_tracker.clone());
-        libraries_tracker.notify().await;
+        libraries_tracker.notify();
 
         let result =
             do_libraries_load(http_client, artifacts, self.directories.libraries_dir.clone(), &libraries_tracker).await;
 
         libraries_tracker.set_finished(result.is_err());
-        libraries_tracker.notify().await;
+        libraries_tracker.notify();
 
         launch_tracker.add_count(1);
-        launch_tracker.notify().await;
+        launch_tracker.notify();
 
         result
     }
@@ -778,7 +778,7 @@ async fn do_java_runtime_load(
 
                     if valid_hash_on_disk {
                         java_runtime_tracker.add_count(downloads.raw.size as usize);
-                        java_runtime_tracker.notify().await;
+                        java_runtime_tracker.notify();
                         return Ok(());
                     }
 
@@ -856,7 +856,7 @@ async fn do_java_runtime_load(
                     }
 
                     java_runtime_tracker.add_count(downloads.raw.size as usize);
-                    java_runtime_tracker.notify().await;
+                    java_runtime_tracker.notify();
                     Ok(())
                 };
                 tasks.push(task);
@@ -867,7 +867,7 @@ async fn do_java_runtime_load(
         }
     }
     java_runtime_tracker.set_total(total_size as usize);
-    java_runtime_tracker.notify().await;
+    java_runtime_tracker.notify();
 
     futures::future::try_join_all(tasks).await?;
 
@@ -969,7 +969,7 @@ async fn do_asset_objects_load(
 
             if valid_hash_on_disk {
                 assets_tracker.add_count(asset.size as usize);
-                assets_tracker.notify().await;
+                assets_tracker.notify();
                 return Ok(());
             }
 
@@ -1005,14 +1005,14 @@ async fn do_asset_objects_load(
 
             tokio::fs::write(path.clone(), &*bytes).await?;
             assets_tracker.add_count(asset.size as usize);
-            assets_tracker.notify().await;
+            assets_tracker.notify();
             Ok(())
         };
         tasks.push(task);
     }
 
     assets_tracker.set_total(total_size as usize);
-    assets_tracker.notify().await;
+    assets_tracker.notify();
 
     futures::future::try_join_all(tasks).await?;
 
@@ -1100,7 +1100,7 @@ async fn do_libraries_load(
 
             if valid_hash_on_disk {
                 libraries_tracker.add_count(tracker_size as usize);
-                libraries_tracker.notify().await;
+                libraries_tracker.notify();
                 return Ok((artifact.path, artifact_path));
             }
 
@@ -1140,14 +1140,14 @@ async fn do_libraries_load(
 
             tokio::fs::write(artifact_path.clone(), &*bytes).await?;
             libraries_tracker.add_count(tracker_size as usize);
-            libraries_tracker.notify().await;
+            libraries_tracker.notify();
             Ok((artifact.path, artifact_path))
         };
         tasks.push(task);
     }
 
     libraries_tracker.set_total(total_size as usize);
-    libraries_tracker.notify().await;
+    libraries_tracker.notify();
 
     futures::future::try_join_all(tasks).await
 }

@@ -422,7 +422,7 @@ impl InstancesPage {
                         name = fallback_name_info.actual.clone();
                     }
 
-                    backend_handle.blocking_send(MessageToBackend::CreateInstance {
+                    backend_handle.send(MessageToBackend::CreateInstance {
                         name: name.as_str().into(),
                         version: selected_version.as_str().into(),
                         loader: selected_loader_value,

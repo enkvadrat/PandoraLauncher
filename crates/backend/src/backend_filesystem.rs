@@ -66,7 +66,7 @@ impl BackendState {
             },
             Err(_) => {
                 eprintln!("An error occurred while watching the filesystem! The launcher might be out-of-sync with your files!");
-                self.send.send_error("An error occurred while watching the filesystem! The launcher might be out-of-sync with your files!").await;
+                self.send.send_error("An error occurred while watching the filesystem! The launcher might be out-of-sync with your files!");
             },
         }
     }
@@ -167,7 +167,7 @@ impl BackendState {
     ) -> bool {
         match target {
             WatchTarget::InstancesDir => {
-                self.send.send_error("Instances folder has been removed! What?!").await;
+                self.send.send_error("Instances folder has been removed! What?!");
                 true
             },
             WatchTarget::InstanceDir { id } => {
@@ -233,10 +233,8 @@ impl BackendState {
                     let old_name = instance.name;
                     instance.name = to.file_name().unwrap().to_string_lossy().into_owned().into();
 
-                    self.send
-                        .send_info(format!("Instance '{}' renamed to '{}'", old_name, instance.name))
-                        .await;
-                    self.send.send(instance.create_modify_message()).await;
+                    self.send.send_info(format!("Instance '{}' renamed to '{}'", old_name, instance.name));
+                    self.send.send(instance.create_modify_message());
 
                     let watching_dot_minecraft = instance.watching_dot_minecraft;
                     let watching_saves_dir = instance.watching_saves_dir;

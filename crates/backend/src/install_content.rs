@@ -73,7 +73,7 @@ impl BackendState {
                         modal_action.trackers.push(tracker.clone());
 
                         tracker.set_total(size);
-                        tracker.notify().await;
+                        tracker.notify();
 
                         let valid_hash_on_disk = {
                             let path = path.clone();
@@ -84,7 +84,7 @@ impl BackendState {
 
                         if valid_hash_on_disk {
                             tracker.set_count(size);
-                            tracker.notify().await;
+                            tracker.notify();
                             return Ok(InstallFromContentLibrary {
                                 from: path,
                                 replace: content_file.replace.clone(),
@@ -109,7 +109,7 @@ impl BackendState {
 
                             total_bytes += item.len();
                             tracker.add_count(item.len());
-                            tracker.notify().await;
+                            tracker.notify();
 
                             hasher.write_all(&item)?;
                             file.write_all(&item).await?;
@@ -141,12 +141,12 @@ impl BackendState {
                         modal_action.trackers.push(tracker.clone());
 
                         tracker.set_total(3);
-                        tracker.notify().await;
+                        tracker.notify();
 
                         let data = tokio::fs::read(path).await?;
 
                         tracker.set_count(1);
-                        tracker.notify().await;
+                        tracker.notify();
 
                         let mut hasher = Sha1::new();
                         hasher.update(&data);
@@ -166,14 +166,14 @@ impl BackendState {
                         };
 
                         tracker.set_count(2);
-                        tracker.notify().await;
+                        tracker.notify();
 
                         if !valid_hash_on_disk {
                             tokio::fs::write(&path, &data).await?;
                         }
 
                         tracker.set_count(3);
-                        tracker.notify().await;
+                        tracker.notify();
                         return Ok(InstallFromContentLibrary {
                             from: path,
                             replace: content_file.replace.clone(),
@@ -242,6 +242,6 @@ impl BackendState {
         }
 
         modal_action.set_finished();
-        self.send.send(MessageToFrontend::Refresh).await;
+        self.send.send(MessageToFrontend::Refresh);
     }
 }

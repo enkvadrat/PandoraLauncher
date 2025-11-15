@@ -21,7 +21,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
 
         let keep_alive = KeepAlive::new();
         let keep_alive_handle = keep_alive.create_handle();
-        sender.blocking_send(MessageToFrontend::CreateGameOutputWindow { id, keep_alive });
+        sender.send(MessageToFrontend::CreateGameOutputWindow { id, keep_alive });
 
         let mut reader = quick_xml::reader::Reader::from_reader(BufReader::new(stdout));
 
@@ -69,7 +69,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
             match reader.read_event_into(&mut buf) {
                 Err(e) => panic!("Error at position {}: {:?}", reader.error_position(), e),
                 Ok(quick_xml::events::Event::Eof) => {
-                    sender.blocking_send(MessageToFrontend::AddGameOutput {
+                    sender.send(MessageToFrontend::AddGameOutput {
                         id,
                         time: chrono::Utc::now().timestamp_millis(),
                         thread: Arc::from("main"),
@@ -251,7 +251,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                                 } else {
                                     Arc::new([empty_message.clone()])
                                 };
-                                sender.blocking_send(MessageToFrontend::AddGameOutput {
+                                sender.send(MessageToFrontend::AddGameOutput {
                                     id,
                                     time: timestamp,
                                     thread,
@@ -346,7 +346,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
             let mut last: Option<&str> = None;
             for split in raw_text.split("\n") {
                 if let Some(last) = last {
-                    sender.blocking_send(MessageToFrontend::AddGameOutput {
+                    sender.send(MessageToFrontend::AddGameOutput {
                         id,
                         time: Utc::now().timestamp_millis(),
                         thread: unknown_thread.clone(),
@@ -378,7 +378,7 @@ pub fn start_game_output(stdout: ChildStdout, sender: FrontendHandle) {
                             }
                         }
 
-                        sender.blocking_send(MessageToFrontend::AddGameOutput {
+                        sender.send(MessageToFrontend::AddGameOutput {
                             id,
                             time: Utc::now().timestamp_millis(),
                             thread: unknown_thread.clone(),

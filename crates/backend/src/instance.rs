@@ -189,7 +189,7 @@ impl Instance {
 
         let task = tokio::task::spawn_blocking(move || {
             let Ok(directory) = std::fs::read_dir(&saves) else {
-                handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingWorlds { instance: instance_id, serial });
+                handle.send(bridge::message::MessageToBackend::FinishedLoadingWorlds { instance: instance_id, serial });
                 return [].into();
             };
 
@@ -224,7 +224,7 @@ impl Instance {
 
             summaries.sort_by_key(|s| -s.last_played);
 
-            handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingWorlds { instance: instance_id, serial });
+            handle.send(bridge::message::MessageToBackend::FinishedLoadingWorlds { instance: instance_id, serial });
 
             summaries.into()
         });
@@ -278,7 +278,7 @@ impl Instance {
                 summaries.truncate(64);
             }
 
-            handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingWorlds { instance: instance_id, serial });
+            handle.send(bridge::message::MessageToBackend::FinishedLoadingWorlds { instance: instance_id, serial });
 
             summaries.into()
         });
@@ -308,7 +308,7 @@ impl Instance {
 
         let task = tokio::task::spawn_blocking(move || {
             if !server_dat_path.is_file() {
-                handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingServers { instance: instance_id, serial });
+                handle.send(bridge::message::MessageToBackend::FinishedLoadingServers { instance: instance_id, serial });
                 return Arc::from([]);
             }
 
@@ -320,7 +320,7 @@ impl Instance {
                 },
             };
 
-            handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingServers { instance: instance_id, serial });
+            handle.send(bridge::message::MessageToBackend::FinishedLoadingServers { instance: instance_id, serial });
 
             result
         });
@@ -362,7 +362,7 @@ impl Instance {
 
         let task = tokio::task::spawn_blocking(move || {
             let Ok(directory) = std::fs::read_dir(&mods) else {
-                handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingMods { instance: instance_id, serial });
+                handle.send(bridge::message::MessageToBackend::FinishedLoadingMods { instance: instance_id, serial });
                 return [].into();
             };
 
@@ -418,7 +418,7 @@ impl Instance {
                     .then_with(|| lexical_sort::natural_lexical_cmp(&a.filename, &b.filename).reverse())
             });
 
-            handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingMods { instance: instance_id, serial });
+            handle.send(bridge::message::MessageToBackend::FinishedLoadingMods { instance: instance_id, serial });
 
             summaries
         });
@@ -535,7 +535,7 @@ impl Instance {
                     .then_with(|| a.filename.cmp(&b.filename).reverse())
             });
 
-            handle.blocking_send(bridge::message::MessageToBackend::FinishedLoadingMods { instance: instance_id, serial });
+            handle.send(bridge::message::MessageToBackend::FinishedLoadingMods { instance: instance_id, serial });
 
             summaries
         });

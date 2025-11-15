@@ -67,7 +67,7 @@ pub fn start_instance(
 ) {
     let modal_action = ModalAction::default();
 
-    backend_handle.blocking_send(MessageToBackend::StartInstance {
+    backend_handle.send(MessageToBackend::StartInstance {
         id,
         quick_play,
         modal_action: modal_action.clone(),
@@ -85,7 +85,7 @@ pub fn start_install(
 ) {
     let modal_action = ModalAction::default();
 
-    backend_handle.blocking_send(MessageToBackend::InstallContent {
+    backend_handle.send(MessageToBackend::InstallContent {
         content: content_install.clone(),
         modal_action: modal_action.clone(),
     });
@@ -101,7 +101,7 @@ pub fn start_update_check(
 ) {
     let modal_action = ModalAction::default();
 
-    backend_handle.blocking_send(MessageToBackend::UpdateCheck {
+    backend_handle.send(MessageToBackend::UpdateCheck {
         instance,
         modal_action: modal_action.clone(),
     });
@@ -119,7 +119,7 @@ pub fn update_single_mod(
 ) {
     let modal_action = ModalAction::default();
 
-    backend_handle.blocking_send(MessageToBackend::UpdateMod {
+    backend_handle.send(MessageToBackend::UpdateMod {
         instance,
         mod_id,
         modal_action: modal_action.clone(),

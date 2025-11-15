@@ -6,7 +6,7 @@ use std::{
 use bridge::{
     handle::BackendHandle,
     instance::{InstanceID, InstanceServerSummary, InstanceWorldSummary},
-    message::{AtomicBridgeDataLoadState, MessageToBackend, QuickPlayLaunch},
+    message::{AtomicBridgeDataLoadState, MessageToBackend, QuickPlayLaunch}, serial::Serial,
 };
 use gpui::{prelude::*, *};
 use gpui_component::{
@@ -26,6 +26,8 @@ pub struct InstanceQuickplaySubpage {
     world_list: Entity<ListState<WorldsListDelegate>>,
     servers_state: Arc<AtomicBridgeDataLoadState>,
     server_list: Entity<ListState<ServersListDelegate>>,
+    worlds_serial: Option<Serial>,
+    servers_serial: Option<Serial>,
 }
 
 impl InstanceQuickplaySubpage {
@@ -92,6 +94,8 @@ impl InstanceQuickplaySubpage {
             world_list,
             servers_state,
             server_list,
+            worlds_serial: None,
+            servers_serial: None,
         }
     }
 }
@@ -102,18 +106,14 @@ impl Render for InstanceQuickplaySubpage {
 
         let state = self.worlds_state.load(Ordering::SeqCst);
         if state.should_send_load_request() {
-            dbg!();
-            self.backend_handle
-                .blocking_send(MessageToBackend::RequestLoadWorlds { id: self.instance });
-            dbg!();
+            let serial = self.backend_handle.send_with_serial(MessageToBackend::RequestLoadWorlds { id: self.instance }, self.worlds_serial);
+            self.worlds_serial = Some(serial);
         }
 
         let state = self.servers_state.load(Ordering::SeqCst);
         if state.should_send_load_request() {
-            dbg!();
-            self.backend_handle
-                .blocking_send(MessageToBackend::RequestLoadServers { id: self.instance });
-            dbg!();
+            let serial = self.backend_handle.send_with_serial(MessageToBackend::RequestLoadServers { id: self.instance }, self.servers_serial);
+            self.servers_serial = Some(serial);
         }
 
         v_flex().p_4().gap_4().size_full().child(

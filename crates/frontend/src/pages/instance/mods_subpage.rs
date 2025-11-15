@@ -3,7 +3,7 @@ use std::sync::{
 };
 
 use bridge::{
-    handle::BackendHandle, install::{ContentDownload, ContentInstall, ContentInstallFile, ContentType, InstallTarget}, instance::{InstanceID, InstanceModID, InstanceModSummary}, keep_alive::{KeepAlive, KeepAliveHandle}, message::{AtomicBridgeDataLoadState, MessageToBackend}
+    handle::BackendHandle, install::{ContentDownload, ContentInstall, ContentInstallFile, ContentType, InstallTarget}, instance::{InstanceID, InstanceModID, InstanceModSummary}, keep_alive::{KeepAlive, KeepAliveHandle}, message::{AtomicBridgeDataLoadState, MessageToBackend}, serial::Serial
 };
 use gpui::{prelude::*, *};
 use gpui_component::{
@@ -19,6 +19,7 @@ pub struct InstanceModsSubpage {
     backend_handle: BackendHandle,
     mods_state: Arc<AtomicBridgeDataLoadState>,
     mod_list: Entity<ListState<ModsListDelegate>>,
+    mods_serial: Option<Serial>,
     _add_from_file_task: Option<Task<()>>,
 }
 
@@ -70,6 +71,7 @@ impl InstanceModsSubpage {
             backend_handle,
             mods_state,
             mod_list,
+            mods_serial: None,
             _add_from_file_task: None,
         }
     }
@@ -81,7 +83,8 @@ impl Render for InstanceModsSubpage {
 
         let state = self.mods_state.load(Ordering::SeqCst);
         if state.should_send_load_request() {
-            self.backend_handle.blocking_send(MessageToBackend::RequestLoadMods { id: self.instance });
+            let serial = self.backend_handle.send_with_serial(MessageToBackend::RequestLoadMods { id: self.instance }, self.mods_serial);
+            self.mods_serial = Some(serial);
         }
 
         let header = h_flex()
@@ -92,7 +95,7 @@ impl Render for InstanceModsSubpage {
             .child(Button::new("sleep5s").label("Sleep 5s").success().compact().small().on_click({
                 let backend_handle = self.backend_handle.clone();
                 move |_, _, _| {
-                    backend_handle.blocking_send(MessageToBackend::Sleep5s);
+                    backend_handle.send(MessageToBackend::Sleep5s);
                 }
             }))
             .child(Button::new("update").label("Check for updates").success().compact().small().on_click({
@@ -220,7 +223,7 @@ impl ListDelegate for ModsListDelegate {
             Button::new(("delete", element_id)).danger().icon(IconName::Check).on_click({
                 let backend_handle = self.backend_handle.clone();
                 move |_, _, _| {
-                    backend_handle.blocking_send(MessageToBackend::DeleteMod { id, mod_id });
+                    backend_handle.send(MessageToBackend::DeleteMod { id, mod_id });
                 }
             })
         } else {
@@ -274,7 +277,7 @@ impl ListDelegate for ModsListDelegate {
                 Switch::new(("toggle", element_id))
                     .checked(summary.enabled)
                     .on_click(move |checked, _, _| {
-                        backend_handle.blocking_send(MessageToBackend::SetModEnabled {
+                        backend_handle.send(MessageToBackend::SetModEnabled {
                             id,
                             mod_id,
                             enabled: *checked,

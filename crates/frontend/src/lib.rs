@@ -6,7 +6,7 @@ use std::{
 };
 
 use bridge::{
-    handle::BackendHandle,
+    handle::{BackendHandle, FrontendReceiver},
     message::{BridgeNotificationType, MessageToFrontend},
 };
 use gpui::*;
@@ -69,7 +69,7 @@ impl AssetSource for Assets {
 pub fn start(
     panic_message: Arc<RwLock<Option<String>>>,
     backend_handle: BackendHandle,
-    mut recv: Receiver<MessageToFrontend>,
+    mut recv: FrontendReceiver,
 ) {
     let http_client = std::sync::Arc::new(
         reqwest_client::ReqwestClient::user_agent(

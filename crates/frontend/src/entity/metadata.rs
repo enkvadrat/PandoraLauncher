@@ -35,7 +35,7 @@ impl FrontendMetadata {
     pub fn force_reload(entity: &Entity<Self>, request: MetadataRequest, cx: &mut App) -> Entity<FrontendMetadataState> {
         entity.update(cx, |this, cx| {
             if let Some(existing) = this.data.get(&request) {
-                this.backend_handle.blocking_send(MessageToBackend::RequestMetadata {
+                this.backend_handle.send(MessageToBackend::RequestMetadata {
                     request: request.clone(),
                     force_reload: true,
                 });
@@ -43,7 +43,7 @@ impl FrontendMetadata {
             }
 
             let loading = cx.new(|_| FrontendMetadataState::Loading);
-            this.backend_handle.blocking_send(MessageToBackend::RequestMetadata {
+            this.backend_handle.send(MessageToBackend::RequestMetadata {
                 request: request.clone(),
                 force_reload: true,
             });
@@ -57,7 +57,7 @@ impl FrontendMetadata {
             if let Some(existing) = this.data.get(&request) {
                 if let FrontendMetadataState::Loaded { keep_alive, .. } = existing.read(cx) {
                     if !keep_alive.as_ref().map(|k| k.is_alive()).unwrap_or(true) {
-                        this.backend_handle.blocking_send(MessageToBackend::RequestMetadata {
+                        this.backend_handle.send(MessageToBackend::RequestMetadata {
                             request: request.clone(),
                             force_reload: false,
                         });
@@ -67,7 +67,7 @@ impl FrontendMetadata {
             }
 
             let loading = cx.new(|_| FrontendMetadataState::Loading);
-            this.backend_handle.blocking_send(MessageToBackend::RequestMetadata {
+            this.backend_handle.send(MessageToBackend::RequestMetadata {
                 request: request.clone(),
                 force_reload: false,
             });

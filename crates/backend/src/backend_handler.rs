@@ -38,7 +38,7 @@ impl BackendState {
                         request,
                         result,
                         keep_alive_handle
-                    }).await;
+                    });
                 });
             },
             MessageToBackend::RequestLoadWorlds { id } => {
@@ -106,15 +106,15 @@ impl BackendState {
             },
             MessageToBackend::CreateInstance { name, version, loader } => {
                 if !crate::is_single_component_path(&name) {
-                    self.send.send_warning(format!("Unable to create instance, name must not be a path: {}", name)).await;
+                    self.send.send_warning(format!("Unable to create instance, name must not be a path: {}", name));
                     return;
                 }
                 if !sanitize_filename::is_sanitized_with_options(&*name, sanitize_filename::OptionsForCheck { windows: true, ..Default::default() }) {
-                    self.send.send_warning(format!("Unable to create instance, name is invalid: {}", name)).await;
+                    self.send.send_warning(format!("Unable to create instance, name is invalid: {}", name));
                     return;
                 }
                 if self.instances.iter().any(|(_, i)| i.name == name) {
-                    self.send.send_warning("Unable to create instance, name is already used".to_string()).await;
+                    self.send.send_warning("Unable to create instance, name is already used".to_string());
                     return;
                 }
 
@@ -139,18 +139,18 @@ impl BackendState {
                     if let Some(mut child) = instance.child.take() {
                         let result = child.kill();
                         if result.is_err() {
-                            self.send.send_error("Failed to kill instance").await;
+                            self.send.send_error("Failed to kill instance");
                             eprintln!("Failed to kill instance: {:?}", result.unwrap_err());
                         }
 
-                        self.send.send(instance.create_modify_message()).await;
+                        self.send.send(instance.create_modify_message());
                     } else {
-                        self.send.send_error("Can't kill instance, instance wasn't running").await;
+                        self.send.send_error("Can't kill instance, instance wasn't running");
                     }
                     return;
                 }
 
-                self.send.send_error("Can't kill instance, unknown id").await;
+                self.send.send_error("Can't kill instance, unknown id");
             },
             MessageToBackend::StartInstance {
                 id,
@@ -171,7 +171,7 @@ impl BackendState {
                 let login_result = self.login(&mut credentials, &login_tracker, &modal_action).await;
 
                 if matches!(login_result, Err(LoginError::CancelledByUser)) {
-                    self.send.send(MessageToFrontend::CloseModal).await;
+                    self.send.send(MessageToFrontend::CloseModal);
                     return;
                 }
 
@@ -180,7 +180,7 @@ impl BackendState {
                 let (profile, access_token) = match login_result {
                     Ok(login_result) => {
                         login_tracker.set_finished(false);
-                        login_tracker.notify().await;
+                        login_tracker.notify();
                         login_result
                     },
                     Err(ref err) => {
@@ -190,7 +190,7 @@ impl BackendState {
 
                         modal_action.set_error_message(format!("Error logging in: {}", &err).into());
                         login_tracker.set_finished(true);
-                        login_tracker.notify().await;
+                        login_tracker.notify();
                         modal_action.set_finished();
                         return;
                     },
@@ -223,12 +223,12 @@ impl BackendState {
                 }
 
                 if secret_storage.write_credentials(profile.id, &credentials).await.is_err() {
-                    self.send.send_warning("Unable to write credentials to keychain. You might need to fully log in again next time").await;
+                    self.send.send_warning("Unable to write credentials to keychain. You might need to fully log in again next time");
                 }
 
                 if update_account_json {
                     self.write_account_info().await;
-                    self.send.send(self.account_info.create_update_message()).await;
+                    self.send.send(self.account_info.create_update_message());
                 }
 
                 let login_info = MinecraftLoginInfo {
@@ -239,21 +239,21 @@ impl BackendState {
 
                 if let Some(instance) = self.instances.get_mut(id.index) && instance.id == id {
                     if instance.child.is_some() {
-                        self.send.send_warning("Can't launch instance, already running").await;
+                        self.send.send_warning("Can't launch instance, already running");
                         modal_action.set_error_message("Can't launch instance, already running".into());
                         modal_action.set_finished();
                         return;
                     }
 
                     if modal_action.has_requested_cancel() {
-                        self.send.send(MessageToFrontend::CloseModal).await;
+                        self.send.send(MessageToFrontend::CloseModal);
                         return;
                     }
 
                     self.send.send(MessageToFrontend::MoveInstanceToTop {
                         id
-                    }).await;
-                    self.send.send(instance.create_modify_message_with_status(InstanceStatus::Launching)).await;
+                    });
+                    self.send.send(instance.create_modify_message_with_status(InstanceStatus::Launching));
 
                     let launch_tracker = ProgressTracker::new(Arc::from("Launching"), self.send.clone());
                     modal_action.trackers.push(launch_tracker.clone());
@@ -261,8 +261,8 @@ impl BackendState {
                     let result = self.launcher.launch(&self.http_client, instance, quick_play, login_info, &launch_tracker, &modal_action).await;
 
                     if matches!(result, Err(LaunchError::CancelledByUser)) {
-                        self.send.send(MessageToFrontend::CloseModal).await;
-                        self.send.send(instance.create_modify_message()).await;
+                        self.send.send(MessageToFrontend::CloseModal);
+                        self.send.send(instance.create_modify_message());
                         return;
                     }
 
@@ -280,15 +280,15 @@ impl BackendState {
                     }
 
                     launch_tracker.set_finished(is_err);
-                    launch_tracker.notify().await;
+                    launch_tracker.notify();
                     modal_action.set_finished();
 
-                    self.send.send(instance.create_modify_message()).await;
+                    self.send.send(instance.create_modify_message());
 
                     return;
                 }
 
-                self.send.send_error("Can't launch instance, unknown id").await;
+                self.send.send_error("Can't launch instance, unknown id");
                 modal_action.set_error_message("Can't launch instance, unknown id".into());
                 modal_action.set_finished();
             },
@@ -322,7 +322,7 @@ impl BackendState {
                     if account.head != head_png {
                         account.head = head_png;
                         account.head_32x = Some(head_png_32x);
-                        self.send.send(self.account_info.create_update_message()).await;
+                        self.send.send(self.account_info.create_update_message());
                         self.write_account_info().await;
                     }
                 }
@@ -391,7 +391,7 @@ impl BackendState {
                                 match source {
                                     ContentSource::Manual => {
                                         tracker.add_count(1);
-                                        tracker.notify().await;
+                                        tracker.notify();
                                         Ok(ModUpdateAction::ManualInstall)
                                     },
                                     ContentSource::Modrinth => {
@@ -403,7 +403,7 @@ impl BackendState {
                                         drop(permit);
 
                                         tracker.add_count(1);
-                                        tracker.notify().await;
+                                        tracker.notify();
 
                                         if let Err(MetaLoadError::NonOK(404)) = result {
                                             return Ok(ModUpdateAction::ErrorNotFound);
@@ -463,7 +463,7 @@ impl BackendState {
                     return;
                 }
 
-                self.send.send_error("Can't update instance, unknown id").await;
+                self.send.send_error("Can't update instance, unknown id");
                 modal_action.set_error_message("Can't update instance, unknown id".into());
                 modal_action.set_finished();
             },
@@ -479,32 +479,32 @@ impl BackendState {
             MessageToBackend::UpdateMod { instance: id, mod_id, modal_action } => {
                 if let Some(instance) = self.instances.get_mut(id.index) && instance.id == id {
                     let Some(mod_summary) = instance.try_get_mod(mod_id) else {
-                        self.send.send_error("Can't update mod in instance, unknown mod id").await;
+                        self.send.send_error("Can't update mod in instance, unknown mod id");
                         modal_action.set_finished();
                         return;
                     };
 
                     let Some(update_info) = self.mod_metadata_manager.updates.read().unwrap().get(&mod_summary.mod_summary.hash).cloned() else {
-                        self.send.send_error("Can't update mod in instance, missing update action").await;
+                        self.send.send_error("Can't update mod in instance, missing update action");
                         modal_action.set_finished();
                         return;
                     };
 
                     match update_info {
                         ModUpdateAction::ErrorNotFound => {
-                            self.send.send_error("Can't update mod in instance, 404 not found").await;
+                            self.send.send_error("Can't update mod in instance, 404 not found");
                             modal_action.set_finished();
                         },
                         ModUpdateAction::ErrorInvalidHash => {
-                            self.send.send_error("Can't update mod in instance, returned invalid hash").await;
+                            self.send.send_error("Can't update mod in instance, returned invalid hash");
                             modal_action.set_finished();
                         },
                         ModUpdateAction::AlreadyUpToDate => {
-                            self.send.send_error("Can't update mod in instance, already up-to-date").await;
+                            self.send.send_error("Can't update mod in instance, already up-to-date");
                             modal_action.set_finished();
                         },
                         ModUpdateAction::ManualInstall => {
-                            self.send.send_error("Can't update mod in instance, mod was manually installed").await;
+                            self.send.send_error("Can't update mod in instance, mod was manually installed");
                             modal_action.set_finished();
                         },
                         ModUpdateAction::Modrinth(modrinth_file) => {
@@ -533,7 +533,7 @@ impl BackendState {
                     return;
                 }
 
-                self.send.send_error("Can't update mod in instance, unknown instance id").await;
+                self.send.send_error("Can't update mod in instance, unknown instance id");
                 modal_action.set_finished();
             },
             MessageToBackend::Sleep5s => {

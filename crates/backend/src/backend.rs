@@ -14,7 +14,7 @@ use auth::{
     serve_redirect::{self, ProcessAuthorizationError},
 };
 use bridge::{
-    handle::{BackendHandle, FrontendHandle},
+    handle::{BackendHandle, BackendReceiver, FrontendHandle},
     instance::InstanceID,
     message::{MessageToBackend, MessageToFrontend},
     modal_action::{ModalAction, ModalActionVisitUrl, ProgressTracker},
@@ -33,7 +33,7 @@ use crate::{
     mod_metadata::ModMetadataManager,
 };
 
-pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: Receiver<MessageToBackend>) {
+pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: BackendReceiver) {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(1)
         .enable_all()
@@ -71,7 +71,6 @@ pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: Receiver<Me
     let mod_metadata_manager = ModMetadataManager::load(directories.content_meta_dir.clone());
 
     let state = BackendState {
-        recv,
         self_handle,
         send: send.clone(),
         watcher,
@@ -90,7 +89,7 @@ pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: Receiver<Me
         secret_storage: OnceCell::new(),
     };
 
-    runtime.spawn(state.start());
+    runtime.spawn(state.start(recv));
 
     std::mem::forget(runtime);
 }
@@ -108,7 +107,6 @@ pub enum WatchTarget {
 }
 
 pub struct BackendState {
-    pub recv: Receiver<MessageToBackend>,
     pub self_handle: BackendHandle,
     pub send: FrontendHandle,
     pub watcher: notify_debouncer_full::Debouncer<notify::RecommendedWatcher, notify_debouncer_full::RecommendedCache>,
@@ -128,11 +126,11 @@ pub struct BackendState {
 }
 
 impl BackendState {
-    async fn start(mut self) {
+    async fn start(mut self, recv: BackendReceiver) {
         // Pre-fetch version manifest
         self.meta.load(&MinecraftVersionManifestMetadataItem).await;
 
-        self.send.send(self.account_info.create_update_message()).await;
+        self.send.send(self.account_info.create_update_message());
 
         let _ = std::fs::create_dir_all(&self.directories.instances_dir);
 
@@ -182,12 +180,12 @@ impl BackendState {
             }
         }
 
-        self.handle().await;
+        self.handle(recv).await;
     }
 
     pub async fn watch_filesystem(&mut self, path: &Path, target: WatchTarget) {
         if self.watcher.watch(path, notify::RecursiveMode::NonRecursive).is_err() {
-            self.send.send_error(format!("Unable to watch directory {:?}, launcher may be out of sync with files!", path)).await;
+            self.send.send_error(format!("Unable to watch directory {:?}, launcher may be out of sync with files!", path));
             return;
         }
         self.watching.insert(path.into(), target);
@@ -198,8 +196,8 @@ impl BackendState {
             && instance.id == id
         {
             let instance = self.instances.remove(id.index);
-            self.send.send(MessageToFrontend::InstanceRemoved { id }).await;
-            self.send.send_info(format!("Instance '{}' removed", instance.name)).await;
+            self.send.send(MessageToFrontend::InstanceRemoved { id });
+            self.send.send_info(format!("Instance '{}' removed", instance.name));
         }
     }
 
@@ -211,13 +209,13 @@ impl BackendState {
                 && existing_instance.id == *existing
             {
                 let instance = self.instances.remove(existing.index);
-                self.send.send(MessageToFrontend::InstanceRemoved { id: instance.id}).await;
+                self.send.send(MessageToFrontend::InstanceRemoved { id: instance.id});
                 show_errors = true;
             }
 
             if show_errors {
                 let error = instance.unwrap_err();
-                self.send.send_error(format!("Unable to load instance from {:?}:\n{}", &path, &error)).await;
+                self.send.send_error(format!("Unable to load instance from {:?}:\n{}", &path, &error));
                 eprintln!("Error loading instance: {:?}", &error);
             }
 
@@ -230,10 +228,10 @@ impl BackendState {
         {
             existing_instance.copy_basic_attributes_from(instance);
 
-            let _ = self.send.send(existing_instance.create_modify_message()).await;
+            let _ = self.send.send(existing_instance.create_modify_message());
 
             if show_success {
-                self.send.send_info(format!("Instance '{}' updated", existing_instance.name)).await;
+                self.send.send_info(format!("Instance '{}' updated", existing_instance.name));
             }
 
             return true;
@@ -247,7 +245,7 @@ impl BackendState {
         self.instances_generation = self.instances_generation.wrapping_add(1);
 
         if show_success {
-            self.send.send_success(format!("Instance '{}' created", instance.name)).await;
+            self.send.send_success(format!("Instance '{}' created", instance.name));
         }
         let message = MessageToFrontend::InstanceAdded {
             id: instance_id,
@@ -260,7 +258,7 @@ impl BackendState {
         };
         instance.id = instance_id;
         vacant.insert(instance);
-        let _ = self.send.send(message).await;
+        self.send.send(message);
 
         self.instance_by_path.insert(path.to_owned(), instance_id);
 
@@ -268,14 +266,14 @@ impl BackendState {
         true
     }
 
-    async fn handle(mut self) {
+    async fn handle(mut self, mut backend_recv: BackendReceiver) {
         let mut interval = tokio::time::interval(Duration::from_millis(1000));
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         tokio::pin!(interval);
 
         loop {
             tokio::select! {
-                message = self.recv.recv() => {
+                message = backend_recv.recv() => {
                     if let Some(message) = message {
                         self.handle_message(message).await;
                     } else {
@@ -306,7 +304,7 @@ impl BackendState {
                 && !matches!(child.try_wait(), Ok(None))
             {
                 instance.child = None;
-                self.send.send(instance.create_modify_message()).await;
+                self.send.send(instance.create_modify_message());
             }
         }
     }
@@ -320,7 +318,7 @@ impl BackendState {
         let mut authenticator = Authenticator::new(self.http_client.clone());
 
         login_tracker.set_total(AUTH_STAGE_COUNT as usize + 1);
-        login_tracker.notify().await;
+        login_tracker.notify();
 
         let mut last_auth_stage = None;
         let mut allow_backwards = true;
@@ -333,7 +331,7 @@ impl BackendState {
             let stage = stage_with_data.stage();
 
             login_tracker.set_count(stage as usize + 1);
-            login_tracker.notify().await;
+            login_tracker.notify();
 
             if let Some(last_stage) = last_auth_stage {
                 if stage > last_stage {
@@ -358,7 +356,7 @@ impl BackendState {
                         message: "Login with Microsoft".into(),
                         url: pending.url.as_str().into(),
                     });
-                    self.send.send(MessageToFrontend::Refresh).await;
+                    self.send.send(MessageToFrontend::Refresh);
 
                     let cancel = modal_action.request_cancel.clone();
                     let finished = tokio::task::spawn_blocking(move || {
@@ -366,7 +364,7 @@ impl BackendState {
                     }).await.unwrap()?;
 
                     modal_action.unset_visit_url();
-                    self.send.send(MessageToFrontend::Refresh).await;
+                    self.send.send(MessageToFrontend::Refresh);
 
                     let msa_tokens = authenticator.finish_authorization(finished).await?;
 
@@ -448,7 +446,7 @@ impl BackendState {
                     match authenticator.get_minecraft_profile(&access_token).await {
                         Ok(profile) => {
                             login_tracker.set_count(AUTH_STAGE_COUNT as usize + 1);
-                            login_tracker.notify().await;
+                            login_tracker.notify();
 
                             return Ok((profile, access_token));
                         },
@@ -469,11 +467,11 @@ impl BackendState {
 
     pub async fn write_account_info(&mut self) {
         let Ok(data) = serde_json::to_vec(&self.account_info) else {
-            self.send.send_error("Failed to serialize account info").await;
+            self.send.send_error("Failed to serialize account info");
             return;
         };
         if crate::write_safe(self.directories.accounts_json.clone(), data).is_err() {
-            self.send.send_error("Failed to write to accounts.json").await;
+            self.send.send_error("Failed to write to accounts.json");
         }
     }
 
@@ -524,7 +522,7 @@ impl BackendState {
                 uuid,
                 head_png,
                 head_png_32x,
-            }).await;
+            });
         });
     }
 
@@ -534,7 +532,7 @@ impl BackendState {
                 self.send.send(MessageToFrontend::InstanceWorldsUpdated {
                     id: instance.id,
                     worlds: Arc::clone(&summaries)
-                }).await;
+                });
 
                 for summary in summaries.iter() {
                     if self.watcher.watch(&summary.level_path, notify::RecursiveMode::NonRecursive).is_ok() {
@@ -553,7 +551,7 @@ impl BackendState {
                 self.send.send(MessageToFrontend::InstanceServersUpdated {
                     id: instance.id,
                     servers: Arc::clone(&summaries)
-                }).await;
+                });
             }
         }
     }
@@ -569,7 +567,7 @@ impl BackendState {
             handle.send(MessageToFrontend::InstanceModsUpdated {
                 id: instance.id,
                 mods: Arc::clone(&summaries)
-            }).await;
+            });
         }
     }
 }

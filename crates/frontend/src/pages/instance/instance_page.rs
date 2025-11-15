@@ -107,7 +107,7 @@ impl Render for InstancePage {
                 .icon(IconName::Close)
                 .label("Kill Instance")
                 .on_click(move |_, _, _| {
-                    backend_handle.blocking_send(MessageToBackend::KillInstance { id });
+                    backend_handle.send(MessageToBackend::KillInstance { id });
                 }),
         };
 
