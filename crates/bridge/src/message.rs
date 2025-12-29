@@ -1,5 +1,6 @@
 use std::{ffi::OsString, path::{Path, PathBuf}, sync::Arc};
 
+use enumset::{EnumSet, EnumSetType};
 use schema::loader::Loader;
 use ustr::Ustr;
 use uuid::Uuid;
@@ -85,6 +86,13 @@ pub enum MessageToBackend {
         instance: InstanceID,
         channel: tokio::sync::oneshot::Sender<LogFiles>,
     },
+    GetSyncState {
+        channel: tokio::sync::oneshot::Sender<SyncState>,
+    },
+    SetSyncing {
+        target: SyncTarget,
+        value: bool,
+    },
     CleanupOldLogFiles {
         instance: InstanceID,
     },
@@ -158,10 +166,56 @@ pub enum MessageToFrontend {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct LogFiles {
     pub paths: Vec<Arc<Path>>,
     pub total_gzipped_size: usize,
+}
+
+#[derive(Debug, Default)]
+pub struct SyncState {
+    pub sync_folder: Option<Arc<Path>>,
+    pub want_sync: EnumSet<SyncTarget>,
+    pub total: usize,
+    pub synced: enum_map::EnumMap<SyncTarget, usize>,
+    pub cannot_sync: enum_map::EnumMap<SyncTarget, usize>,
+}
+
+#[derive(Debug, enum_map::Enum, EnumSetType, strum::EnumIter)]
+pub enum SyncTarget {
+    Options,
+    Servers,
+    Commands,
+    Saves,
+    Config,
+    Screenshots,
+    Resourcepacks,
+    Shaderpacks,
+    Flashback,
+    DistantHorizons,
+    Voxy,
+    XaerosMinimap,
+    Bobby,
+}
+
+impl SyncTarget {
+    pub fn get_folder(self) -> Option<&'static str> {
+        match self {
+            SyncTarget::Options => None,
+            SyncTarget::Servers => None,
+            SyncTarget::Commands => None,
+            SyncTarget::Saves => Some("saves"),
+            SyncTarget::Config => Some("config"),
+            SyncTarget::Screenshots => Some("screenshots"),
+            SyncTarget::Resourcepacks => Some("resourcepacks"),
+            SyncTarget::Shaderpacks => Some("shaderpacks"),
+            SyncTarget::Flashback => Some("flashback"),
+            SyncTarget::DistantHorizons => Some("Distant_Horizons_server_data"),
+            SyncTarget::Voxy => Some(".voxy"),
+            SyncTarget::XaerosMinimap => Some("xaero"),
+            SyncTarget::Bobby => Some(".bobby"),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

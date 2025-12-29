@@ -11,3 +11,6 @@ ustr.workspace = true
 tokio.workspace = true
 uuid.workspace = true
 tokio-util.workspace = true
+enum-map.workspace = true
+enumset.workspace = true
+strum.workspace = true

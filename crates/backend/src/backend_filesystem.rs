@@ -1,6 +1,6 @@
 use std::{collections::HashSet, path::Path, sync::Arc};
 
-use bridge::instance::InstanceID;
+use bridge::{instance::InstanceID, message::MessageToFrontend};
 use notify::{
     EventKind,
     event::{CreateKind, DataChange, ModifyKind, RemoveKind, RenameMode},
@@ -88,9 +88,9 @@ impl BackendState {
     async fn handle_filesystem_remove_event(
         &mut self,
         path: Arc<Path>,
+        target: Option<WatchTarget>,
         after_debounce_effects: &mut AfterDebounceEffects,
     ) {
-        let target = self.file_watching.write().watching.remove(&path);
         if let Some(target) = target
             && self.filesystem_handle_removed(target, &path, after_debounce_effects).await
         {
@@ -127,7 +127,7 @@ impl BackendState {
                 return;
             }
         }
-        self.handle_filesystem_remove_event(from, after_debounce_effects).await;
+        self.handle_filesystem_remove_event(from, target, after_debounce_effects).await;
         self.handle_filesystem_change_event(to, after_debounce_effects).await;
     }
 
@@ -138,7 +138,10 @@ impl BackendState {
     ) {
         match event {
             FilesystemEvent::Change(path) => self.handle_filesystem_change_event(path, after_debounce_effects).await,
-            FilesystemEvent::Remove(path) => self.handle_filesystem_remove_event(path, after_debounce_effects).await,
+            FilesystemEvent::Remove(path) => {
+                let target = self.file_watching.write().watching.remove(&path);
+                self.handle_filesystem_remove_event(path, target, after_debounce_effects).await;
+            },
             FilesystemEvent::Rename(from, to) => self.handle_filesystem_rename_event(from, to, after_debounce_effects).await,
         }
     }
@@ -167,12 +170,26 @@ impl BackendState {
         _after_debounce_effects: &mut AfterDebounceEffects,
     ) -> bool {
         match target {
+            WatchTarget::RootDir => {
+                self.send.send_error("Launcher directory has been removed! This is very bad!");
+                true
+            },
             WatchTarget::InstancesDir => {
-                self.send.send_error("Instances folder has been removed! What?!");
+                self.send.send_error("Instances dir has been been removed! Uh oh!");
+
+                let mut instance_state = self.instance_state.write();
+
+                for instance in instance_state.instances.drain() {
+                    self.send.send(MessageToFrontend::InstanceRemoved { id: instance.id });
+                }
+
+                instance_state.instance_by_path.clear();
+                instance_state.reload_mods_immediately.clear();
+
                 true
             },
             WatchTarget::InstanceDir { id } => {
-                self.remove_instance(id).await;
+                self.remove_instance(id);
                 true
             },
             WatchTarget::InvalidInstanceDir => {
@@ -267,6 +284,14 @@ impl BackendState {
         after_debounce_effects: &mut AfterDebounceEffects,
     ) {
         match parent {
+            WatchTarget::RootDir => {
+                let Some(file_name) = path.file_name() else {
+                    return;
+                };
+                if file_name == "instances" {
+                    self.load_all_instances().await;
+                }
+            }
             WatchTarget::InstancesDir => {
                 if path.is_dir() {
                     let success = self.load_instance_from_path(path, false, true).await;
@@ -370,7 +395,7 @@ impl BackendState {
                     return;
                 };
                 if file_name == "info_v1.json" {
-                    self.remove_instance(id).await;
+                    self.remove_instance(id);
                     self.watch_filesystem(parent_path, WatchTarget::InvalidInstanceDir);
                 }
             },

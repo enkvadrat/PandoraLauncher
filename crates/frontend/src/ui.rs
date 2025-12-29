@@ -10,7 +10,7 @@ use crate::{
     entity::{
         instance::{InstanceAddedEvent, InstanceModifiedEvent, InstanceMovedToTopEvent, InstanceRemovedEvent}, DataEntities
     },
-    pages::{instance::instance_page::{InstancePage, InstanceSubpageType}, instances_page::InstancesPage, modrinth_page::ModrinthSearchPage},
+    pages::{instance::instance_page::{InstancePage, InstanceSubpageType}, instances_page::InstancesPage, modrinth_page::ModrinthSearchPage, syncing_page::SyncingPage},
     png_render_cache, root,
 };
 
@@ -28,6 +28,7 @@ pub struct LauncherUI {
 #[derive(Clone)]
 pub enum LauncherPage {
     Instances(Entity<InstancesPage>),
+    Syncing(Entity<SyncingPage>),
     Modrinth {
         installing_for: Option<InstanceID>,
         page: Entity<ModrinthSearchPage>,
@@ -39,6 +40,7 @@ impl LauncherPage {
     pub fn into_any_element(self) -> AnyElement {
         match self {
             LauncherPage::Instances(entity) => entity.into_any_element(),
+            LauncherPage::Syncing(entity) => entity.into_any_element(),
             LauncherPage::Modrinth { page, .. } => page.into_any_element(),
             LauncherPage::InstancePage(_, _, entity) => entity.into_any_element(),
         }
@@ -47,6 +49,7 @@ impl LauncherPage {
     pub fn page_type(&self) -> PageType {
         match self {
             LauncherPage::Instances(_) => PageType::Instances,
+            LauncherPage::Syncing(_) => PageType::Syncing,
             LauncherPage::Modrinth { installing_for, .. } => PageType::Modrinth { installing_for: *installing_for },
             LauncherPage::InstancePage(id, subpage, _) => PageType::InstancePage(*id, *subpage),
         }
@@ -125,6 +128,13 @@ impl LauncherUI {
                 self.page = LauncherPage::Instances(cx.new(|cx| InstancesPage::new(data, window, cx)));
                 cx.notify();
             },
+            PageType::Syncing => {
+                if let LauncherPage::Syncing(..) = self.page {
+                    return;
+                }
+                self.page = LauncherPage::Syncing(cx.new(|cx| SyncingPage::new(data, window, cx)));
+                cx.notify();
+            },
             PageType::Modrinth { installing_for } => {
                 if let LauncherPage::Modrinth { installing_for: current_installing_for, .. } = self.page && current_installing_for == installing_for {
                     return;
@@ -158,6 +168,7 @@ impl LauncherUI {
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum PageType {
     Instances,
+    Syncing,
     Modrinth {
         installing_for: Option<InstanceID>,
     },
@@ -175,7 +186,11 @@ impl Render for LauncherUI {
                     .on_click(cx.listener(|launcher, _, window, cx| {
                         launcher.switch_page(PageType::Instances, None, window, cx);
                     })),
-                // SidebarMenuItem::new("Mods"),
+                SidebarMenuItem::new("Syncing")
+                    .active(page_type == PageType::Syncing)
+                    .on_click(cx.listener(|launcher, _, window, cx| {
+                        launcher.switch_page(PageType::Syncing, None, window, cx);
+                    })),
             ]),
         );
 

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet}, io::Cursor, path::{Path, PathBuf}, sync::Arc, thread, time::{Duration, SystemTime}
+    collections::{HashMap, HashSet}, io::Cursor, path::{Path, PathBuf}, sync::{atomic::AtomicUsize, Arc}, thread, time::{Duration, SystemTime}
 };
 
 use auth::{
@@ -10,8 +10,9 @@ use auth::{
     serve_redirect::{self, ProcessAuthorizationError},
 };
 use bridge::{
-    handle::{BackendHandle, BackendReceiver, FrontendHandle}, install::{ContentDownload, ContentInstall, ContentInstallFile}, instance::{InstanceID, InstanceModSummary, InstanceServerSummary, InstanceWorldSummary, LoaderSpecificModSummary}, message::{MessageToBackend, MessageToFrontend}, modal_action::{ModalAction, ModalActionVisitUrl, ProgressTracker, ProgressTrackerFinishType}
+    handle::{BackendHandle, BackendReceiver, FrontendHandle}, install::{ContentDownload, ContentInstall, ContentInstallFile}, instance::{InstanceID, InstanceModSummary, InstanceServerSummary, InstanceWorldSummary, LoaderSpecificModSummary}, message::{MessageToBackend, MessageToFrontend, SyncTarget}, modal_action::{ModalAction, ModalActionVisitUrl, ProgressTracker, ProgressTrackerFinishType}
 };
+use enumset::EnumSet;
 use image::imageops::FilterType;
 use parking_lot::RwLock;
 use reqwest::{StatusCode, redirect::Policy};
@@ -20,7 +21,7 @@ use sha1::{Digest, Sha1};
 use tokio::sync::{mpsc::Receiver, OnceCell};
 
 use crate::{
-    account::BackendAccountInfo, directories::LauncherDirectories, id_slab::IdSlab, instance::Instance, launch::Launcher, metadata::{items::MinecraftVersionManifestMetadataItem, manager::MetadataManager}, mod_metadata::ModMetadataManager
+    account::BackendAccountInfo, config::BackendConfig, directories::LauncherDirectories, id_slab::IdSlab, instance::Instance, launch::Launcher, metadata::{items::MinecraftVersionManifestMetadataItem, manager::MetadataManager}, mod_metadata::ModMetadataManager
 };
 
 pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: BackendReceiver) {
@@ -59,11 +60,6 @@ pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: BackendRece
         let _ = watcher_tx.blocking_send(event);
     }).unwrap();
 
-    let mut account_info = load_accounts_json(&directories);
-    for account in account_info.accounts.values_mut() {
-        account.try_load_head_32x_from_head();
-    }
-
     let mod_metadata_manager = ModMetadataManager::load(directories.content_meta_dir.clone(), directories.content_library_dir.clone());
 
     let state_instances = BackendStateInstances {
@@ -73,10 +69,24 @@ pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: BackendRece
         reload_mods_immediately: HashSet::new(),
     };
 
-    let state_file_watching = BackendStateFileWatching {
+    let mut state_file_watching = BackendStateFileWatching {
         watcher,
         watching: HashMap::new(),
     };
+
+
+    // Create initial directories
+    let _ = std::fs::create_dir_all(&directories.instances_dir);
+    state_file_watching.try_watch_filesystem(&directories.root_launcher_dir, WatchTarget::RootDir);
+
+    // Load accounts
+    let mut account_info = directories.read_accounts().unwrap_or_default();
+    for account in account_info.accounts.values_mut() {
+        account.try_load_head_32x_from_head();
+    }
+
+    // Load config
+    let config = directories.read_config().unwrap_or_default();
 
     let state = BackendState {
         self_handle,
@@ -90,6 +100,7 @@ pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: BackendRece
         launcher: Launcher::new(meta, directories, send),
         mod_metadata_manager: Arc::new(mod_metadata_manager),
         account_info: Arc::new(RwLock::new(account_info)),
+        config: Arc::new(RwLock::new(config)),
         secret_storage: Arc::new(OnceCell::new()),
     };
 
@@ -98,8 +109,9 @@ pub fn start(send: FrontendHandle, self_handle: BackendHandle, recv: BackendRece
     std::mem::forget(runtime);
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum WatchTarget {
+    RootDir,
     InstancesDir,
     InvalidInstanceDir,
     InstanceDir { id: InstanceID },
@@ -135,6 +147,7 @@ pub struct BackendState {
     pub launcher: Launcher,
     pub mod_metadata_manager: Arc<ModMetadataManager>,
     pub account_info: Arc<RwLock<BackendAccountInfo>>,
+    pub config: Arc<RwLock<BackendConfig>>,
     pub secret_storage: Arc<OnceCell<PlatformSecretStorage>>,
 }
 
@@ -145,12 +158,15 @@ impl BackendState {
 
         self.send.send(self.account_info.read().create_update_message());
 
-        let _ = std::fs::create_dir_all(&self.directories.instances_dir);
+        self.load_all_instances().await;
 
-        self.watch_filesystem(&self.directories.instances_dir.clone(), WatchTarget::InstancesDir);
+        self.handle(recv, watcher_rx).await;
+    }
 
+    pub async fn load_all_instances(&mut self) {
         let mut paths_with_time = Vec::new();
 
+        self.file_watching.write().try_watch_filesystem(&self.directories.instances_dir, WatchTarget::InstancesDir);
         for entry in std::fs::read_dir(&self.directories.instances_dir).unwrap() {
             let Ok(entry) = entry else {
                 eprintln!("Error reading directory in instances folder: {:?}", entry.unwrap_err());
@@ -164,8 +180,8 @@ impl BackendState {
                 if let Ok(created) = metadata.created() {
                     time = time.max(created);
                 }
-                if let Ok(created) = metadata.modified() {
-                    time = time.max(created);
+                if let Ok(modified) = metadata.modified() {
+                    time = time.max(modified);
                 }
             }
 
@@ -177,8 +193,8 @@ impl BackendState {
                 if let Ok(created) = metadata.created() {
                     time = time.max(created);
                 }
-                if let Ok(created) = metadata.modified() {
-                    time = time.max(created);
+                if let Ok(modified) = metadata.modified() {
+                    time = time.max(modified);
                 }
             }
 
@@ -192,15 +208,13 @@ impl BackendState {
                 self.watch_filesystem(&path, WatchTarget::InvalidInstanceDir);
             }
         }
-
-        self.handle(recv, watcher_rx).await;
     }
 
     pub fn watch_filesystem(&self, path: &Path, target: WatchTarget) {
         self.file_watching.write().watch_filesystem(path, target, &self.send);
     }
 
-    pub async fn remove_instance(&mut self, id: InstanceID) {
+    pub fn remove_instance(&mut self, id: InstanceID) {
         let mut instance_state = self.instance_state.write();
 
         if let Some(instance) = instance_state.instances.remove(id) {
@@ -485,16 +499,6 @@ impl BackendState {
         }
     }
 
-    pub fn write_account_info(&self, account_info: &BackendAccountInfo) {
-        let Ok(data) = serde_json::to_vec(account_info) else {
-            self.send.send_error("Failed to serialize account info");
-            return;
-        };
-        if crate::write_safe(self.directories.accounts_json.clone(), data).is_err() {
-            self.send.send_error("Failed to write to accounts.json");
-        }
-    }
-
     pub fn update_profile_head(&self, profile: &MinecraftProfileResponse) {
         let Some(skin) = profile.skins.iter().find(|skin| skin.state == SkinState::Active).cloned() else {
             return;
@@ -546,7 +550,22 @@ impl BackendState {
         });
     }
 
-    pub async fn prelaunch_handle_mods(&self, id: InstanceID, modal_action: &ModalAction) -> Vec<PathBuf> {
+    pub async fn prelaunch(&self, id: InstanceID, modal_action: &ModalAction) -> Vec<PathBuf> {
+        self.prelaunch_apply_syncing(id);
+        self.prelaunch_apply_modpacks(id, modal_action).await
+    }
+
+    pub fn prelaunch_apply_syncing(&self, id: InstanceID) {
+        let path = if let Some(instance) = self.instance_state.read().instances.get(id) {
+            instance.dot_minecraft_path.clone()
+        } else {
+            return;
+        };
+
+        crate::syncing::apply_to_instance(self.config.read().sync_targets, &self.directories, path);
+    }
+
+    pub async fn prelaunch_apply_modpacks(&self, id: InstanceID, modal_action: &ModalAction) -> Vec<PathBuf> {
         let Some(mods) = self.clone().load_instance_mods(id).await else {
             return Vec::new();
         };
@@ -807,6 +826,14 @@ impl BackendState {
 }
 
 impl BackendStateFileWatching {
+    pub fn try_watch_filesystem(&mut self, path: &Path, target: WatchTarget) -> bool {
+        if self.watcher.watch(path, notify::RecursiveMode::NonRecursive).is_err() {
+            return false;
+        }
+        self.watching.insert(path.into(), target);
+        true
+    }
+
     pub fn watch_filesystem(&mut self, path: &Path, target: WatchTarget, send: &FrontendHandle) {
         if self.watcher.watch(path, notify::RecursiveMode::NonRecursive).is_err() {
             if path.exists() {
@@ -816,16 +843,6 @@ impl BackendStateFileWatching {
         }
         self.watching.insert(path.into(), target);
     }
-}
-
-fn load_accounts_json(directories: &LauncherDirectories) -> BackendAccountInfo {
-    if let Ok(data) = std::fs::read(&directories.accounts_json)
-        && let Ok(account_info) = serde_json::from_slice(&data)
-    {
-        return account_info;
-    }
-
-    BackendAccountInfo::default()
 }
 
 #[derive(thiserror::Error, Debug)]

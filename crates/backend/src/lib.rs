@@ -1,16 +1,20 @@
 #![deny(unused_must_use)]
 
 mod backend;
-use std::{ffi::OsString, io::Write, path::{Path, PathBuf}};
+use std::{ffi::OsString, io::{Read, Seek, SeekFrom, Write}, path::{Path, PathBuf}};
 
 pub use backend::*;
+use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
+
+use crate::directories::IoOrSerializationError;
 
 mod backend_filesystem;
 mod backend_handler;
 
 mod account;
 mod arcfactory;
+mod config;
 mod directories;
 mod install_content;
 mod instance;
@@ -20,6 +24,7 @@ mod log_reader;
 mod metadata;
 mod mod_metadata;
 mod id_slab;
+mod syncing;
 
 pub(crate) fn is_single_component_path(path: &str) -> bool {
     let path = std::path::Path::new(path);
@@ -58,10 +63,7 @@ pub(crate) fn check_sha1_hash(path: &Path, expected_hash: [u8; 20]) -> std::io::
     Ok(expected_hash == *actual_hash)
 }
 
-pub(crate) fn write_safe(path: impl AsRef<Path>, content: impl AsRef<[u8]>) -> std::io::Result<()> {
-    let path = path.as_ref();
-    let content = content.as_ref();
-
+pub(crate) fn write_safe(path: &Path, content: &[u8]) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }

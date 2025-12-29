@@ -46,6 +46,10 @@ impl<T: GetId> IdSlab<T> {
         return self.slab.try_remove(id.get_index());
     }
 
+    pub fn drain(&mut self) -> impl Iterator<Item = T> {
+        self.slab.drain()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &T> {
         self.slab.iter().map(|(_, v)| v)
     }

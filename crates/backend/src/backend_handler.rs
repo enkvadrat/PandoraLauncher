@@ -2,7 +2,7 @@ use std::{ffi::OsString, io::{BufRead, Read, Seek, SeekFrom, Write}, path::Path,
 
 use auth::{credentials::AccountCredentials, secret::PlatformSecretStorage};
 use bridge::{
-    install::{ContentDownload, ContentInstall, ContentInstallFile, InstallTarget}, instance::{ContentUpdateStatus, InstanceStatus, LoaderSpecificModSummary, ModSummary}, message::{LogFiles, MessageToBackend, MessageToFrontend}, meta::MetadataResult, modal_action::{ModalActionVisitUrl, ProgressTracker, ProgressTrackerFinishType}, serial::AtomicOptionSerial
+    install::{ContentDownload, ContentInstall, ContentInstallFile, InstallTarget}, instance::{ContentUpdateStatus, InstanceStatus, LoaderSpecificModSummary, ModSummary}, message::{LogFiles, MessageToBackend, MessageToFrontend, SyncState}, meta::MetadataResult, modal_action::{ModalActionVisitUrl, ProgressTracker, ProgressTrackerFinishType}, serial::AtomicOptionSerial
 };
 use futures::{FutureExt, TryFutureExt};
 use schema::{content::ContentSource, modrinth::{ModrinthFile, ModrinthLoader}, version::{LaunchArgument, LaunchArgumentValue}};
@@ -209,7 +209,7 @@ impl BackendState {
 
                     if update_account_json {
                         self.send.send(account_info.create_update_message());
-                        self.write_account_info(&*account_info);
+                        _ = self.directories.write_accounts(&*account_info);
                     }
                 }
 
@@ -225,7 +225,7 @@ impl BackendState {
                 };
 
                 let add_mods = tokio::select! {
-                    add_mods = self.prelaunch_handle_mods(id, &modal_action) => add_mods,
+                    add_mods = self.prelaunch(id, &modal_action) => add_mods,
                     _ = modal_action.request_cancel.cancelled() => {
                         self.send.send(MessageToFrontend::CloseModal);
                         return;
@@ -350,7 +350,7 @@ impl BackendState {
                         account.head = head_png;
                         account.head_32x = Some(head_png_32x);
                         self.send.send(account_info.create_update_message());
-                        self.write_account_info(&*account_info);
+                        _ = self.directories.write_accounts(&*account_info);
                     }
                 }
             },
@@ -752,6 +752,48 @@ impl BackendState {
                         let _ = channel.send(LogFiles { paths, total_gzipped_size: total_gzipped_size.min(usize::MAX as u64) as usize });
                     }
                 }
+            },
+            MessageToBackend::GetSyncState { channel } => {
+                let result = crate::syncing::get_sync_state(self.config.read().sync_targets, &self.directories);
+
+                match result {
+                    Ok(state) => {
+                        _ = channel.send(state);
+                    },
+                    Err(error) => {
+                        self.send.send_error(format!("Error while getting sync state: {error}"));
+                    },
+                }
+            },
+            MessageToBackend::SetSyncing { target, value } => {
+                let mut write = self.config.write();
+
+                let result = if value {
+                    crate::syncing::enable_all(target, &self.directories)
+                } else {
+                    crate::syncing::disable_all(target, &self.directories).map(|_| true)
+                };
+
+                match result {
+                    Ok(success) => {
+                        if !success {
+                            self.send.send_error("Unable to enable syncing, cannot override existing directories");
+                            return;
+                        }
+                    },
+                    Err(error) => {
+                        self.send.send_error(format!("Error while enabling syncing: {error}"));
+                        return;
+                    },
+                }
+
+                if value {
+                    write.sync_targets.insert(target);
+                } else {
+                    write.sync_targets.remove(target);
+                }
+
+                _ = self.directories.write_config(&write);
             },
             MessageToBackend::CleanupOldLogFiles { instance: id } => {
                 let mut deleted = 0;
