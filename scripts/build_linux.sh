@@ -15,6 +15,7 @@ cargo install cargo-packager
 cargo packager --config '{'\
 '  "name": "pandora-launcher",'\
 '  "outDir": "./dist",'\
+'  "formats": ["deb", "appimage"],'\
 '  "productName": "Pandora Launcher",'\
 '  "version": "'"$1"'",'\
 '  "identifier": "com.moulberry.pandoralauncher",'\
