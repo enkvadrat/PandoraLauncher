@@ -99,6 +99,12 @@ pub enum MessageToBackend {
     UploadLogFile {
         path: Arc<Path>,
         modal_action: ModalAction,
+    },
+    AddNewAccount {
+        modal_action: ModalAction,
+    },
+    SelectAccount {
+        uuid: Uuid,
     }
 }
 

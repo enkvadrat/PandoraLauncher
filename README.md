@@ -14,7 +14,6 @@ Work in progress
 
 ## Missing Features (WIP)
 - NeoForge/Forge support
-- Account switching
 
 ## FAQ
 

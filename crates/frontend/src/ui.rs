@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use bridge::instance::InstanceID;
+use bridge::{instance::InstanceID, message::MessageToBackend};
 use gpui::{prelude::*, *};
 use gpui_component::{
-    breadcrumb::{Breadcrumb, BreadcrumbItem}, h_flex, resizable::{h_resizable, resizable_panel, ResizableState}, sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem}, v_flex, ActiveTheme as _, Icon
+    breadcrumb::{Breadcrumb, BreadcrumbItem}, button::{Button, ButtonVariants}, h_flex, resizable::{h_resizable, resizable_panel, ResizableState}, sidebar::{Sidebar, SidebarFooter, SidebarGroup, SidebarHeader, SidebarMenu, SidebarMenuItem}, v_flex, ActiveTheme as _, Icon, IconName, WindowExt
 };
 
 use crate::{
@@ -176,7 +176,7 @@ pub enum PageType {
 }
 
 impl Render for LauncherUI {
-    fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let page_type = self.page.page_type();
 
         let library_group = SidebarGroup::new("Library").child(
@@ -245,6 +245,72 @@ impl Render for LauncherUI {
 
         let pandora_icon = Icon::empty().path("icons/pandora.svg");
 
+        let footer = div().w_full().id("footer-button").child(SidebarFooter::new()
+            .w_full()
+            .justify_center()
+            .text_size(rems(0.9375))
+            .child(account_head.size_8().min_w_8().min_h_8())
+            .child(account_name))
+            .on_click({
+                let accounts = self.data.accounts.clone();
+                let backend_handle = self.data.backend_handle.clone();
+                move |_, window, cx| {
+                    if accounts.read(cx).accounts.is_empty() {
+                        crate::root::start_new_account_login(&backend_handle, window, cx);
+                        return;
+                    }
+
+                    let accounts = accounts.clone();
+                    let backend_handle = backend_handle.clone();
+                    window.open_sheet_at(gpui_component::Placement::Left, cx, move |sheet, window, cx| {
+                        let (accounts, selected_account) = {
+                            let accounts = accounts.read(cx);
+                            (accounts.accounts.clone(), accounts.selected_account_uuid)
+                        };
+
+                        let items = accounts.iter().map(|account| {
+                            let head = if let Some(head) = &account.head {
+                                png_render_cache::render(Arc::clone(head), cx)
+                            } else {
+                                gpui::img(ImageSource::Resource(Resource::Embedded("images/default_head.png".into())))
+                            };
+                            let account_name = SharedString::new(account.username.clone());
+
+                            let selected = Some(account.uuid) == selected_account;
+
+                            Button::new(account_name.clone())
+                                .when(selected, |this| {
+                                    this.info()
+                                })
+                                .h_10()
+                                .child(head.size_8().min_w_8().min_h_8())
+                                .child(account_name)
+                                .when(!selected, |this| {
+                                    this.on_click({
+                                        let backend_handle = backend_handle.clone();
+                                        let uuid = account.uuid;
+                                        move |_, _, _| {
+                                            backend_handle.send(MessageToBackend::SelectAccount { uuid });
+                                        }
+                                    })
+                                })
+                        });
+
+                        sheet
+                            .title("Accounts")
+                            .margin_top(crate::root::sheet_margin_top(window))
+                            .gap_2()
+                            .child(Button::new("Add account").h_10().success().icon(IconName::Plus).label("Add account").on_click({
+                                let backend_handle = backend_handle.clone();
+                                move |_, window, cx| {
+                                    crate::root::start_new_account_login(&backend_handle, window, cx);
+                                }
+                            }))
+                            .children(items)
+                    });
+                }
+            });
+
         let sidebar = Sidebar::left()
             .width(relative(1.))
             .border_width(px(0.))
@@ -256,14 +322,7 @@ impl Render for LauncherUI {
                     .child(pandora_icon.size_8().min_w_8().min_h_8())
                     .child("Pandora"),
             )
-            .footer(
-                SidebarFooter::new()
-                    .w_full()
-                    .justify_center()
-                    .text_size(rems(0.9375))
-                    .child(account_head.size_8().min_w_8().min_h_8())
-                    .child(account_name),
-            )
+            .footer(footer)
             .children(groups);
 
         h_resizable("container")

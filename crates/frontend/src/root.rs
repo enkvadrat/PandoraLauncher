@@ -65,12 +65,39 @@ impl Render for LauncherRoot {
         v_flex()
             .size_full()
             .font_family(MAIN_FONT)
-            .when(matches!(window.window_decorations(), Decorations::Client { .. }), |this| {
+            .when(has_csd_titlebar(window), |this| {
                 this.child(gpui_component::TitleBar::new().child("Pandora"))
             })
             .child(self.ui.clone())
             .into_any_element()
     }
+}
+
+pub fn has_csd_titlebar(window: &Window) -> bool {
+    matches!(window.window_decorations(), Decorations::Client { .. })
+}
+
+pub fn sheet_margin_top(window: &Window) -> Pixels {
+    if has_csd_titlebar(window) {
+        gpui_component::TITLE_BAR_HEIGHT
+    } else {
+        Pixels::ZERO
+    }
+}
+
+pub fn start_new_account_login(
+    backend_handle: &BackendHandle,
+    window: &mut Window,
+    cx: &mut App,
+) {
+    let modal_action = ModalAction::default();
+
+    backend_handle.send(MessageToBackend::AddNewAccount {
+        modal_action: modal_action.clone(),
+    });
+
+    let title = SharedString::new_static("Adding new account");
+    modals::generic::show_modal(window, cx, title, "Error adding account".into(), modal_action);
 }
 
 pub fn start_instance(

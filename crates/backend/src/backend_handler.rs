@@ -1,8 +1,8 @@
 use std::{ffi::OsString, io::{BufRead, Read, Seek, SeekFrom, Write}, path::Path, sync::{atomic::Ordering, Arc}, time::{Duration, SystemTime}};
 
-use auth::{credentials::AccountCredentials, secret::PlatformSecretStorage};
+use auth::{credentials::AccountCredentials, models::{MinecraftAccessToken, MinecraftProfileResponse}, secret::PlatformSecretStorage};
 use bridge::{
-    install::{ContentDownload, ContentInstall, ContentInstallFile, InstallTarget}, instance::{ContentUpdateStatus, InstanceStatus, LoaderSpecificModSummary, ModSummary}, message::{LogFiles, MessageToBackend, MessageToFrontend, SyncState}, meta::MetadataResult, modal_action::{ModalActionVisitUrl, ProgressTracker, ProgressTrackerFinishType}, serial::AtomicOptionSerial
+    install::{ContentDownload, ContentInstall, ContentInstallFile, InstallTarget}, instance::{ContentUpdateStatus, InstanceStatus, LoaderSpecificModSummary, ModSummary}, message::{LogFiles, MessageToBackend, MessageToFrontend, SyncState}, meta::MetadataResult, modal_action::{ModalAction, ModalActionVisitUrl, ProgressTracker, ProgressTrackerFinishType}, serial::AtomicOptionSerial
 };
 use futures::{FutureExt, TryFutureExt};
 use schema::{content::ContentSource, modrinth::{ModrinthFile, ModrinthLoader}, version::{LaunchArgument, LaunchArgumentValue}};
@@ -88,108 +88,10 @@ impl BackendState {
                 quick_play,
                 modal_action,
             } => {
-                let secret_storage = match self.secret_storage.get_or_init(PlatformSecretStorage::new).await {
-                    Ok(secret_storage) => secret_storage,
-                    Err(error) => {
-                        modal_action.set_error_message(format!("Error initializing secret storage: {error}").into());
-                        modal_action.set_finished();
-                        return;
-                    }
-                };
-
                 let selected_account = self.account_info.read().selected_account;
-
-                let mut credentials = if let Some(selected_account) = selected_account {
-                    match secret_storage.read_credentials(selected_account).await {
-                        Ok(credentials) => credentials.unwrap_or_default(),
-                        Err(error) => {
-                            eprintln!("Unable to read credentials from keychain: {error}");
-                            self.send.send_warning(
-                                "Unable to read credentials from keychain. You will need to log in again",
-                            );
-                            AccountCredentials::default()
-                        },
-                    }
-                } else {
-                    AccountCredentials::default()
-                };
-
-                let login_tracker = ProgressTracker::new(Arc::from("Logging in"), self.send.clone());
-                modal_action.trackers.push(login_tracker.clone());
-
-                let login_result = self.login(&mut credentials, &login_tracker, &modal_action).await;
-
-                if matches!(login_result, Err(LoginError::CancelledByUser)) {
-                    self.send.send(MessageToFrontend::CloseModal);
+                let Some((profile, access_token)) = self.login_flow(&modal_action, selected_account).await else {
                     return;
-                }
-
-                let secret_storage = match self.secret_storage.get_or_init(PlatformSecretStorage::new).await {
-                    Ok(secret_storage) => secret_storage,
-                    Err(error) => {
-                        modal_action.set_error_message(format!("Error initializing secret storage: {error}").into());
-                        modal_action.set_finished();
-                        return;
-                    }
                 };
-
-                let (profile, access_token) = match login_result {
-                    Ok(login_result) => {
-                        login_tracker.set_finished(ProgressTrackerFinishType::Normal);
-                        login_tracker.notify();
-                        login_result
-                    },
-                    Err(ref err) => {
-                        if let Some(selected_account) = selected_account {
-                            let _ = secret_storage.delete_credentials(selected_account).await;
-                        }
-
-                        modal_action.set_error_message(format!("Error logging in: {}", &err).into());
-                        login_tracker.set_finished(ProgressTrackerFinishType::Error);
-                        login_tracker.notify();
-                        modal_action.set_finished();
-                        return;
-                    },
-                };
-
-                if let Some(selected_account) = selected_account
-                    && profile.id != selected_account
-                {
-                    let _ = secret_storage.delete_credentials(selected_account).await;
-                }
-
-                let mut update_account_json = false;
-
-                {
-                    let mut account_info = self.account_info.write();
-                    if let Some(account) = account_info.accounts.get_mut(&profile.id) {
-                        if !account.downloaded_head {
-                            account.downloaded_head = true;
-                            self.update_profile_head(&profile);
-                        }
-                    } else {
-                        let mut account = BackendAccount::new_from_profile(&profile);
-                        account.downloaded_head = true;
-                        account_info.accounts.insert(profile.id, account);
-                        self.update_profile_head(&profile);
-                        update_account_json = true;
-                    }
-
-                    if account_info.selected_account != Some(profile.id) {
-                        account_info.selected_account = Some(profile.id);
-                        update_account_json = true;
-                    }
-
-                    if update_account_json {
-                        self.send.send(account_info.create_update_message());
-                        _ = self.directories.write_accounts(&*account_info);
-                    }
-                }
-
-                if let Err(error) = secret_storage.write_credentials(profile.id, &credentials).await {
-                    eprintln!("Unable to write credentials to keychain: {error}");
-                    self.send.send_warning("Unable to write credentials to keychain. You might need to fully log in again next time");
-                }
 
                 let login_info = MinecraftLoginInfo {
                     uuid: profile.id,
@@ -933,6 +835,130 @@ impl BackendState {
                 tracker.set_finished(ProgressTrackerFinishType::Normal);
                 tracker.notify();
             },
+            MessageToBackend::AddNewAccount { modal_action } => {
+                self.login_flow(&modal_action, None).await;
+            },
+            MessageToBackend::SelectAccount { uuid } => {
+                let mut account_info = self.account_info.write();
+
+                if account_info.selected_account == Some(uuid) {
+                    return;
+                }
+
+                if account_info.accounts.contains_key(&uuid) {
+                    account_info.selected_account = Some(uuid);
+                }
+
+                self.send.send(account_info.create_update_message());
+                _ = self.directories.write_accounts(&*account_info);
+            }
+        }
+    }
+
+    pub async fn login_flow(&self, modal_action: &ModalAction, selected_account: Option<uuid::Uuid>) -> Option<(MinecraftProfileResponse, MinecraftAccessToken)> {
+        let mut credentials = if let Some(selected_account) = selected_account {
+            let secret_storage = match self.secret_storage.get_or_init(PlatformSecretStorage::new).await {
+                Ok(secret_storage) => secret_storage,
+                Err(error) => {
+                    modal_action.set_error_message(format!("Error initializing secret storage: {error}").into());
+                    modal_action.set_finished();
+                    return None;
+                }
+            };
+
+            match secret_storage.read_credentials(selected_account).await {
+                Ok(credentials) => credentials.unwrap_or_default(),
+                Err(error) => {
+                    eprintln!("Unable to read credentials from keychain: {error}");
+                    self.send.send_warning(
+                        "Unable to read credentials from keychain. You will need to log in again",
+                    );
+                    AccountCredentials::default()
+                },
+            }
+        } else {
+            AccountCredentials::default()
+        };
+
+        let login_tracker = ProgressTracker::new(Arc::from("Logging in"), self.send.clone());
+        modal_action.trackers.push(login_tracker.clone());
+
+        let login_result = self.login(&mut credentials, &login_tracker, &modal_action).await;
+
+        if matches!(login_result, Err(LoginError::CancelledByUser)) {
+            self.send.send(MessageToFrontend::CloseModal);
+            return None;
+        }
+
+        let secret_storage = match self.secret_storage.get_or_init(PlatformSecretStorage::new).await {
+            Ok(secret_storage) => secret_storage,
+            Err(error) => {
+                modal_action.set_error_message(format!("Error initializing secret storage: {error}").into());
+                modal_action.set_finished();
+                return None;
+            }
+        };
+
+        let (profile, access_token) = match login_result {
+            Ok(login_result) => {
+                login_tracker.set_finished(ProgressTrackerFinishType::Normal);
+                login_tracker.notify();
+                login_result
+            },
+            Err(ref err) => {
+                if let Some(selected_account) = selected_account {
+                    let _ = secret_storage.delete_credentials(selected_account).await;
+                }
+
+                modal_action.set_error_message(format!("Error logging in: {}", &err).into());
+                login_tracker.set_finished(ProgressTrackerFinishType::Error);
+                login_tracker.notify();
+                modal_action.set_finished();
+                return None;
+            },
+        };
+
+        if let Some(selected_account) = selected_account
+            && profile.id != selected_account
+        {
+            let _ = secret_storage.delete_credentials(selected_account).await;
+        }
+
+        self.update_account_info_with_profile(&profile);
+
+        if let Err(error) = secret_storage.write_credentials(profile.id, &credentials).await {
+            eprintln!("Unable to write credentials to keychain: {error}");
+            self.send.send_warning("Unable to write credentials to keychain. You might need to fully log in again next time");
+        }
+
+        Some((profile, access_token))
+    }
+
+    pub fn update_account_info_with_profile(&self, profile: &MinecraftProfileResponse) {
+        let mut update_account_json = false;
+
+        let mut account_info = self.account_info.write();
+        if let Some(account) = account_info.accounts.get_mut(&profile.id) {
+            if !account.downloaded_head {
+                account.downloaded_head = true;
+                self.update_profile_head(profile);
+            }
+        } else {
+            let mut account = BackendAccount::new_from_profile(profile);
+            account.downloaded_head = true;
+            account_info.accounts.insert(profile.id, account);
+            self.update_profile_head(profile);
+            update_account_json = true;
+        }
+
+        if account_info.selected_account != Some(profile.id) {
+            account_info.selected_account = Some(profile.id);
+            update_account_json = true;
+        }
+
+        if update_account_json {
+            self.send.send(account_info.create_update_message());
+            _ = self.directories.write_accounts(&*account_info);
         }
     }
 
