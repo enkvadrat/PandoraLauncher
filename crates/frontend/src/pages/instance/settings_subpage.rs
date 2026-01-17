@@ -1,13 +1,13 @@
-use std::{borrow::Cow, path::Path, sync::Arc};
+use std::{borrow::Cow, cmp::Ordering, path::Path, sync::Arc};
 
 use bridge::{
     handle::BackendHandle, instance::InstanceID, message::MessageToBackend
 };
 use gpui::{prelude::*, *};
 use gpui_component::{
-    button::{Button, ButtonVariants}, checkbox::Checkbox, h_flex, input::{Input, InputEvent, InputState, NumberInput, NumberInputEvent}, notification::{Notification, NotificationType}, v_flex, ActiveTheme as _, Disableable, Sizable, WindowExt
+    ActiveTheme as _, Disableable, Selectable, Sizable, WindowExt, button::{Button, ButtonGroup, ButtonVariants}, checkbox::Checkbox, h_flex, input::{Input, InputEvent, InputState, NumberInput, NumberInputEvent}, notification::{Notification, NotificationType}, v_flex
 };
-use schema::instance::{InstanceJvmBinaryConfiguration, InstanceJvmFlagsConfiguration, InstanceMemoryConfiguration};
+use schema::{instance::{InstanceJvmBinaryConfiguration, InstanceJvmFlagsConfiguration, InstanceMemoryConfiguration}, loader::Loader};
 
 use crate::{entity::instance::InstanceEntry, interface_config::InterfaceConfig};
 
@@ -21,6 +21,7 @@ enum NewNameChangeState {
 pub struct InstanceSettingsSubpage {
     instance: Entity<InstanceEntry>,
     instance_id: InstanceID,
+    loader: Loader,
     new_name_input_state: Entity<InputState>,
     memory_override_enabled: bool,
     memory_min_input_state: Entity<InputState>,
@@ -46,6 +47,7 @@ impl InstanceSettingsSubpage {
 
         let entry = instance.read(cx);
         let instance_id = entry.id;
+        let loader = entry.configuration.loader;
 
         let memory = entry.configuration.memory.unwrap_or_default();
         let jvm_flags = entry.configuration.jvm_flags.clone().unwrap_or_default();
@@ -71,6 +73,7 @@ impl InstanceSettingsSubpage {
             instance: instance.clone(),
             instance_id,
             new_name_input_state,
+            loader,
             memory_override_enabled: memory.enabled,
             memory_min_input_state,
             memory_max_input_state,
@@ -247,7 +250,49 @@ impl Render for InstanceSettingsSubpage {
                         }
                     })
                 )
-            );
+            )
+            .child(ButtonGroup::new("loader")
+                .outline()
+                .child(
+                    Button::new("loader-vanilla")
+                        .label("Vanilla")
+                        .selected(self.loader == Loader::Vanilla),
+                )
+                .child(
+                    Button::new("loader-fabric")
+                        .label("Fabric")
+                        .selected(self.loader == Loader::Fabric),
+                )
+                .child(
+                    Button::new("loader-forge")
+                        .label("Forge")
+                        .selected(self.loader == Loader::Forge),
+                )
+                .child(
+                    Button::new("loader-neoforge")
+                        .label("NeoForge")
+                        .selected(self.loader == Loader::NeoForge),
+                )
+                .on_click(cx.listener({
+                    let backend_handle = self.backend_handle.clone();
+                    move |page, selected: &Vec<usize>, _, cx| {
+                        let last_loader = page.loader;
+                        match selected.first() {
+                            Some(0) => page.loader = Loader::Vanilla,
+                            Some(1) => page.loader = Loader::Fabric,
+                            Some(2) => page.loader = Loader::Forge,
+                            Some(3) => page.loader = Loader::NeoForge,
+                            _ => {},
+                        };
+                        if page.loader != last_loader {
+                            backend_handle.send(MessageToBackend::SetInstanceLoader {
+                                id: page.instance_id,
+                                loader: page.loader,
+                            });
+                            cx.notify();
+                        }
+                    }
+                })));
 
         let runtime_content = v_flex()
             .gap_4()

@@ -29,6 +29,10 @@ pub enum MessageToBackend {
         id: InstanceID,
         name: Ustr,
     },
+    SetInstanceLoader {
+        id: InstanceID,
+        loader: Loader
+    },
     SetInstanceMemory {
         id: InstanceID,
         memory: InstanceMemoryConfiguration,
