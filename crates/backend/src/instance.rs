@@ -93,6 +93,7 @@ impl Instance {
     pub fn on_root_renamed(&mut self, path: &Path) {
         self.name = path.file_name().unwrap().to_string_lossy().into_owned().into();
         self.root_path = path.into();
+        self.configuration = Persistent::load_or(path.join("info_v1.json").into(), self.configuration.get().clone());
 
         let mut dot_minecraft_path = path.to_owned();
         dot_minecraft_path.push(".minecraft");
