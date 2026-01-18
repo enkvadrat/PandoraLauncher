@@ -1,5 +1,5 @@
 use std::{
-    borrow::Cow, cmp::Ordering, collections::{HashMap, HashSet}, ffi::{OsStr, OsString}, io::Write, path::{Path, PathBuf}, process::{Child, Stdio}, sync::{atomic::AtomicBool, Arc, OnceLock}
+    borrow::Cow, cmp::Ordering, collections::{BTreeSet, HashMap, HashSet}, ffi::{OsStr, OsString}, io::{BufRead, BufReader, Read, Write}, path::{Path, PathBuf}, process::{Child, Stdio}, sync::{Arc, OnceLock, atomic::AtomicBool}
 };
 
 use bridge::{
@@ -29,6 +29,7 @@ use crate::{
 pub struct Launcher {
     meta: Arc<MetadataManager>,
     directories: Arc<LauncherDirectories>,
+    launch_wrapper: Arc<Path>,
     sender: FrontendHandle,
 }
 
@@ -70,9 +71,11 @@ pub enum AddVanillaJar {
 
 impl Launcher {
     pub fn new(meta: Arc<MetadataManager>, directories: Arc<LauncherDirectories>, sender: FrontendHandle) -> Self {
+        let launch_wrapper = launch_wrapper::create_wrapper(&directories.temp_dir).into();
         Self {
             meta,
             directories,
+            launch_wrapper,
             sender,
         }
     }
@@ -206,6 +209,7 @@ impl Launcher {
         }
 
         let launch_context = LaunchContext {
+            launch_wrapper_path: self.launch_wrapper.clone(),
             java_path,
             natives_dir,
             libraries_dir: self.directories.libraries_dir.clone(),
@@ -795,6 +799,36 @@ impl Launcher {
             }
         }
 
+        if let Some(force_external_java) = std::env::var_os("FORCE_EXTERNAL_JAVA") {
+            let paths = std::env::split_paths(&force_external_java);
+
+            let mut found_versions = BTreeSet::new();
+
+            let needed_version = if let Some(java_version) = &version_info.java_version {
+                java_version.major_version
+            } else {
+                8
+            };
+
+            for path in paths {
+                let Some(binary) = Self::search_for_java_binary(&path) else {
+                    continue;
+                };
+
+                let Some(major_version) = self.get_major_java_version(&binary) else {
+                    continue;
+                };
+
+                if major_version == needed_version {
+                    return Ok(binary);
+                } else {
+                    found_versions.insert(major_version);
+                }
+            }
+
+            return Err(LoadJavaRuntimeError::UnableToFindExternalBinary(needed_version, found_versions.into_iter().collect()));
+        }
+
         let platform: Ustr = match (std::env::consts::OS, std::env::consts::ARCH) {
             ("linux", "x86_64") => "linux".into(),
             ("linux", "x86") => "linux-i386".into(),
@@ -1157,6 +1191,33 @@ impl Launcher {
 
         None
     }
+
+    fn get_major_java_version(&self, binary: &Path) -> Option<u32> {
+        let mut command = std::process::Command::new(binary);
+        command.arg("-jar");
+        command.arg(self.launch_wrapper.as_os_str().to_os_string());
+        command.stdin(Stdio::piped());
+        command.stdout(Stdio::piped());
+
+        let mut process = command.spawn().ok()?;
+
+        let mut stdin = process.stdin.take().unwrap();
+        stdin.write_all(b"printproperty\njava.specification.version\nexit\n").ok()?;
+        stdin.flush().ok()?;
+
+        let output = process.wait_with_output().ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        let output = output.stdout.trim_ascii();
+        let mut output = str::from_utf8(output).ok()?;
+        if output.starts_with("1.") {
+            output = &output[2..];
+        }
+        output.parse().ok()
+    }
 }
 
 struct MavenCoordinate<'a> {
@@ -1300,6 +1361,8 @@ pub enum LoadJavaRuntimeError {
     WrongHash,
     #[error("Unable to find binary")]
     UnableToFindBinary,
+    #[error("Unable to find external binary, needed Java {0}, got Java {1:?}")]
+    UnableToFindExternalBinary(u32, Vec<u32>),
 }
 
 async fn do_java_runtime_load(
@@ -1951,6 +2014,7 @@ impl LaunchRuleContext {
 }
 
 pub struct LaunchContext {
+    pub launch_wrapper_path: Arc<Path>,
     pub java_path: PathBuf,
     pub natives_dir: PathBuf,
     pub libraries_dir: Arc<Path>,
@@ -1975,7 +2039,7 @@ impl LaunchContext {
         command.stdout(Stdio::piped());
         command.stderr(Stdio::piped());
 
-        self.classpath.push(launch_wrapper::create_wrapper(&self.temp_dir).into_os_string());
+        self.classpath.push(self.launch_wrapper_path.as_os_str().to_os_string());
 
         if let Some(arguments) = &version_info.arguments {
             self.process_arguments(&arguments.jvm, &mut |arg| {
