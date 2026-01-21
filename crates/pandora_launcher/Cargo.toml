@@ -13,6 +13,10 @@ bridge.workspace = true
 backtrace.workspace = true
 parking_lot.workspace = true
 directories.workspace = true
+clap.workspace = true
+indicatif.workspace = true
+open.workspace = true
+native-dialog.workspace = true
 
 [build-dependencies]
 winres = "0.1.12"
