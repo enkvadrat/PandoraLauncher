@@ -1,6 +1,7 @@
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use bridge::handle::FrontendHandle;
+use parking_lot::RwLock;
 
 pub fn install_logging_hook() {
     std::panic::set_hook(Box::new(move |info| {
@@ -65,7 +66,7 @@ pub fn install_hook(panic_message: Arc<RwLock<Option<String>>>, frontend_handle:
             };
 
             log::error!("{}", message);
-            *panic_message.write().unwrap() = Some(message);
+            *panic_message.write() = Some(message);
             frontend_handle.send(bridge::message::MessageToFrontend::Refresh);
         } else {
             (old_hook)(info);

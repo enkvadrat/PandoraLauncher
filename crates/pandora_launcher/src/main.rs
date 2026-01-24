@@ -3,7 +3,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::fmt::Write;
 use std::time::SystemTime;
 
@@ -12,6 +12,7 @@ use bridge::modal_action::{ModalAction, ProgressTrackerFinishType};
 use clap::Parser;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use native_dialog::DialogBuilder;
+use parking_lot::RwLock;
 
 #[derive(Parser, Debug)]
 #[command()]
@@ -188,7 +189,7 @@ fn run_gui(launcher_dir: PathBuf) {
                 }
 
                 log::error!("{}", message);
-                *deadlock_message.write().unwrap() = Some(message);
+                *deadlock_message.write() = Some(message);
                 frontend_handle.send(bridge::message::MessageToFrontend::Refresh);
                 return;
             }
