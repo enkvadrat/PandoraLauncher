@@ -22,7 +22,7 @@ cargo packager --config '{'\
 '  "name": "pandora-launcher",'\
 '  "outDir": "./dist",'\
 '  "formats": ["dmg"],'\
-'  "productName": "Pandora Launcher",'\
+'  "productName": "PandoraLauncher",'\
 '  "version": "'"$version"'",'\
 '  "identifier": "com.moulberry.pandoralauncher",'\
 '  "resources": [],'\
