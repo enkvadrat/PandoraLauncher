@@ -75,7 +75,7 @@ pub fn start(
     panic_message: Arc<RwLock<Option<String>>>,
     deadlock_message: Arc<RwLock<Option<String>>>,
     backend_handle: BackendHandle,
-    recv: FrontendReceiver,
+    mut recv: FrontendReceiver,
 ) {
     let http_client = std::sync::Arc::new(
         reqwest_client::ReqwestClient::user_agent(
@@ -156,11 +156,26 @@ pub fn start(
             })
         };
 
-        open_main_window(&data, Some((recv, main_window_hidden)), cx);
+        let mut processor = Processor::new(data.clone(), main_window_hidden);
+
+        while let Some(message) = recv.try_recv() {
+            processor.process(message, cx);
+        }
+
+        let main_window = open_main_window(&data, cx);
+        processor.set_main_window_handle(main_window, cx);
+
+        cx.spawn(async move |cx| {
+            while let Some(message) = recv.recv().await {
+                _ = cx.update(|cx| {
+                    processor.process(message, cx);
+                });
+            }
+        }).detach();
     });
 }
 
-pub fn open_main_window(data: &DataEntities, start_processor: Option<(FrontendReceiver, Arc<AtomicBool>)>, cx: &mut App) -> AnyWindowHandle {
+pub fn open_main_window(data: &DataEntities, cx: &mut App) -> AnyWindowHandle {
     let handle = cx.open_window(
         WindowOptions {
             app_id: Some("PandoraLauncher".into()),
@@ -173,22 +188,6 @@ pub fn open_main_window(data: &DataEntities, start_processor: Option<(FrontendRe
             ..Default::default()
         },
         |window, cx| {
-            if let Some((mut recv, main_window_hidden)) = start_processor {
-                let mut processor = Processor::new(data.clone(), window.window_handle(), main_window_hidden);
-
-                while let Some(message) = recv.try_recv() {
-                    processor.process(message, cx);
-                }
-
-                cx.spawn(async move |cx| {
-                    while let Some(message) = recv.recv().await {
-                        _ = cx.update(|cx| {
-                            processor.process(message, cx);
-                        });
-                    }
-                }).detach();
-            }
-
             window.set_window_title("Pandora");
 
             let launcher_root = cx.new(|cx| LauncherRoot::new(&data, window, cx));

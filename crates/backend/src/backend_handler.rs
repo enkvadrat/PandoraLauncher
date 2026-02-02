@@ -1014,6 +1014,9 @@ impl BackendState {
                     crate::shortcut::create_shortcut(path, &format!("Launch {}", instance.name), &current_exe, args);
                 }
             },
+            MessageToBackend::InstallUpdate { update, modal_action } => {
+                tokio::task::spawn(crate::update::install_update(self.redirecting_http_client.clone(), self.directories.clone(), self.send.clone(), update, modal_action));
+            }
         }
     }
 

@@ -9,6 +9,7 @@ use auth::{
     secret::{PlatformSecretStorage, SecretStorageError},
     serve_redirect::{self, ProcessAuthorizationError},
 };
+use base64::Engine;
 use bridge::{
     handle::{BackendHandle, BackendReceiver, FrontendHandle}, install::{ContentDownload, ContentInstall, ContentInstallFile, ContentInstallPath}, instance::{InstanceID, InstanceContentSummary, InstanceServerSummary, InstanceWorldSummary, ContentType}, message::MessageToFrontend, modal_action::{ModalAction, ModalActionVisitUrl, ProgressTracker, ProgressTrackerFinishType}, safe_path::SafePath
 };
@@ -17,6 +18,7 @@ use parking_lot::RwLock;
 use reqwest::{StatusCode, redirect::Policy};
 use rustc_hash::{FxHashMap, FxHashSet};
 use schema::{backend_config::BackendConfig, instance::InstanceConfiguration, loader::Loader, modrinth::ModrinthSideRequirement};
+use serde::Deserialize;
 use sha1::{Digest, Sha1};
 use tokio::sync::{mpsc::Receiver, OnceCell};
 use ustr::Ustr;
@@ -173,6 +175,8 @@ pub enum HeadCacheEntry {
 impl BackendState {
     async fn start(self, recv: BackendReceiver, watcher_rx: Receiver<notify_debouncer_full::DebounceEventResult>) {
         log::info!("Starting backend");
+
+        tokio::task::spawn(crate::update::check_for_updates(self.redirecting_http_client.clone(), self.send.clone()));
 
         // Pre-fetch version manifest
         self.meta.load(&MinecraftVersionManifestMetadataItem).await;
