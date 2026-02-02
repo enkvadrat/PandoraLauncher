@@ -216,6 +216,12 @@ impl BackendState {
                                 log_reader::start_game_output(stdout, child.stderr.take(), self.send.clone());
                             }
                         }
+
+                        // Close handles if unused
+                        child.stderr.take();
+                        child.stdin.take();
+                        child.stdout.take();
+
                         if let Some(instance) = self.instance_state.write().instances.get_mut(id) {
                             instance.child = Some(child);
                         }
