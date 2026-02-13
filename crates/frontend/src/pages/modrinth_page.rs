@@ -753,7 +753,7 @@ impl Render for ModrinthSearchPage {
             .child(
                 Button::new("toggle-categories")
                     .label("Categories")
-                    .icon(if is_shown { IconName::ChevronUp } else { IconName::ChevronDown })
+                    .icon(if is_shown { IconName::ChevronDown } else { IconName::ChevronRight })
                     .when(!is_shown, |this| this.outline())
                     .on_click(move |_, _, _| {
                         show_categories.store(!is_shown, std::sync::atomic::Ordering::Relaxed);
